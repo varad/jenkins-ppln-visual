@@ -46,7 +46,7 @@ intellijPlatform {
 val repoRoot = rootDir.resolve("../..").normalize()
 val webDir = repoRoot.resolve("packages/web")
 
-val buildWebview by tasks.registering(Exec::class) {
+val buildWebview = tasks.register<Exec>("buildWebview") {
     workingDir = repoRoot
     commandLine("pnpm", "--filter", "@jpv/web", "build:embed")
     inputs.dir(repoRoot.resolve("packages/core/src"))

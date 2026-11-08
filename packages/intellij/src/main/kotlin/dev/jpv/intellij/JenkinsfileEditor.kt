@@ -21,6 +21,8 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.IdeFocusManager
+import com.intellij.ui.JBSplitter
+import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.jcef.JBCefApp
 import javax.swing.Icon
 import javax.swing.JComponent
@@ -62,7 +64,7 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
         // The base class restores whatever mode this editor used last. Apply the shared mode instead,
         // so every Jenkinsfile opens in the same mode, including after an IDE restart.
         setLayout(layoutMode)
-        view.onStageClick = { offset -> if (layout == Layout.SHOW_EDITOR_AND_PREVIEW) moveCaretTo(offset) }
+        view.onStageClick = { offset -> if (getLayout() == Layout.SHOW_EDITOR_AND_PREVIEW) moveCaretTo(offset) }
     }
 
     private fun moveCaretTo(offset: Int) {
@@ -85,11 +87,15 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
         val component = super.getComponent()
         // The base class builds the component from its own per-file layout setting, which can
         // overwrite the shared mode set in init. Put the shared mode back when they differ.
-        if (layout != layoutMode) setLayout(layoutMode)
+        if (getLayout() != layoutMode) setLayout(layoutMode)
         return component
     }
 
-    override fun isShowFloatingToolbar() = false
+    // The base class ignores isVerticalSplit when it builds the splitter, so ask for a vertical one here.
+    override fun createSplitter(): JBSplitter = OnePixelSplitter(true)
+
+    override val isShowFloatingToolbar: Boolean
+        get() = false
 
     override fun createViewActionGroup(): ActionGroup = DefaultActionGroup(
         ModeAction("Code", AllIcons.General.LayoutEditorOnly, Layout.SHOW_EDITOR),
@@ -104,7 +110,7 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
 
         override fun getActionUpdateThread() = ActionUpdateThread.EDT
 
-        override fun isSelected(e: AnActionEvent) = layout == mode
+        override fun isSelected(e: AnActionEvent) = getLayout() == mode
 
         override fun setSelected(e: AnActionEvent, state: Boolean) {
             if (state) {

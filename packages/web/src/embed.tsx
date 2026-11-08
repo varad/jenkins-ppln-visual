@@ -36,6 +36,15 @@ window.jpvView = {
   },
 };
 
+let overClickable = false;
+
+/** Out-of-process JCEF drops CSS cursor changes, so the IDE has to set the pointer itself. */
+function reportHover(clickable: boolean) {
+  if (clickable === overClickable) return;
+  overClickable = clickable;
+  window.jpvHost?.onHover?.(clickable);
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -68,6 +77,8 @@ function Viewer() {
       ref={setContainer}
       className="svg-preview"
       dangerouslySetInnerHTML={{ __html: svg }}
+      onMouseOver={(e) => reportHover((e.target as Element).closest('[data-stage-id], [data-post]') !== null)}
+      onMouseLeave={() => reportHover(false)}
       onClick={(e) => {
         const target = e.target as Element;
         const id = target.closest('[data-stage-id]')?.getAttribute('data-stage-id');

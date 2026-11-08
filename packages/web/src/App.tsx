@@ -10,7 +10,7 @@ import { indexStages } from './stages';
 declare global {
   interface Window {
     jpv?: { setSource: (text: string) => void };
-    jpvHost?: { onSelect?: (range: SourceRange) => void };
+    jpvHost?: { onSelect?: (range: SourceRange) => void; onHover?: (clickable: boolean) => void };
   }
 }
 

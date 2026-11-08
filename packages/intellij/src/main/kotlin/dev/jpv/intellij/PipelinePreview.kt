@@ -23,6 +23,7 @@ import com.intellij.util.ui.UIUtil
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.handler.CefLoadHandlerAdapter
+import java.awt.Cursor
 import java.beans.PropertyChangeListener
 import javax.swing.JComponent
 
@@ -57,6 +58,7 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
 
     // Must be created before the CEF browser starts, which happens once the component is shown.
     private val stageClicks = JBCefJSQuery.create(browser as JBCefBrowserBase)
+    private val stageHovers = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val renders = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private val gson = Gson()
 
@@ -67,6 +69,7 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
         open.add(this)
         Disposer.register(this, browser)
         Disposer.register(this, stageClicks)
+        Disposer.register(this, stageHovers)
 
         // Runs on a CEF thread.
         stageClicks.addHandler { request ->
@@ -76,11 +79,21 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
             null
         }
 
+        // Runs on a CEF thread.
+        stageHovers.addHandler { request ->
+            val type = if (request == "true") Cursor.HAND_CURSOR else Cursor.DEFAULT_CURSOR
+            ApplicationManager.getApplication().invokeLater {
+                browser.cefBrowser.uiComponent.cursor = Cursor.getPredefinedCursor(type)
+            }
+            null
+        }
+
         browser.jbCefClient.addLoadHandler(object : CefLoadHandlerAdapter() {
             override fun onLoadEnd(cefBrowser: CefBrowser, frame: CefFrame, httpStatusCode: Int) {
                 if (!frame.isMain) return
                 val bridge = "window.jpvHost = { onSelect: function (range) { " +
-                    stageClicks.inject("String(range.start)") + " } };"
+                    stageClicks.inject("String(range.start)") + " }, onHover: function (clickable) { " +
+                    stageHovers.inject("String(clickable)") + " } };"
                 cefBrowser.executeJavaScript(bridge, cefBrowser.url, 0)
                 pageLoaded = true
                 scheduleRender(0)
