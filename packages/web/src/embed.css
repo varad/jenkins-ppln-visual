@@ -1,0 +1,24 @@
+/* The host sets data-theme and --bg, so the page follows the IDE theme rather than the OS. */
+:root {
+  --bg: #ffffff;
+  --ink: #1f2328;
+  --quiet: #656d76;
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  --bg: #2b2b2b;
+  --ink: #e6edf3;
+  --quiet: #8d96a0;
+  color-scheme: dark;
+}
+
+/* These beat the prefers-color-scheme rule that toSvg embeds for standalone files. */
+:root[data-theme] .jpv-ink { fill: var(--ink); }
+:root[data-theme] .jpv-quiet { fill: var(--quiet); }
+
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.45 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.svg-preview { height: 100%; overflow: auto; }
+.svg-preview svg { display: block; }
+.empty { padding: 48px; max-width: 520px; color: var(--quiet); }
+.empty h2 { color: var(--ink); font-size: 16px; }

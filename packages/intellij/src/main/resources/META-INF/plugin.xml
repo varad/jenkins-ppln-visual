@@ -1,0 +1,16 @@
+<idea-plugin>
+    <id>dev.jpv.jenkinsfile-visualizer</id>
+    <name>Jenkinsfile Visualizer</name>
+    <vendor>Radek Vařbuchta</vendor>
+    <description><![CDATA[
+      Draws the stages of a declarative Jenkinsfile next to its code.
+      Switch between Code, View and Dual with the icons above the editor.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="groovy-support.xml">org.intellij.groovy</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileEditorProvider implementation="dev.jpv.intellij.JenkinsfileEditorProvider"/>
+    </extensions>
+</idea-plugin>

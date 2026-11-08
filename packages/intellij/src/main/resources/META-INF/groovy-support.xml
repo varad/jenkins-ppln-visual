@@ -1,0 +1,6 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Adds these names to the existing Groovy file type, so Code mode is highlighted. -->
+        <fileType name="Groovy" fileNames="Jenkinsfile" patterns="*.Jenkinsfile;Jenkinsfile.*"/>
+    </extensions>
+</idea-plugin>

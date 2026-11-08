@@ -38,6 +38,21 @@ can paste into GitHub Markdown; **Download SVG** saves the picture.
 - Scripted pipelines (`node { ... }`) are detected and reported, not drawn.
 - With a missing `}`, the parser recovers using indentation and still draws the stages.
 
+## IntelliJ plugin
+
+`packages/intellij` adds **Code**, **View** and **Dual** icons above the editor for
+`Jenkinsfile`, `*.Jenkinsfile` and `Jenkinsfile.*`. It targets IntelliJ 2022.1 and
+needs `pnpm install` to have been run.
+
+```sh
+cd packages/intellij
+./gradlew runIde        # try it in a sandbox IDE
+./gradlew buildPlugin   # build/distributions/*.zip, for Install Plugin from Disk
+```
+
+It shows `packages/web/embed.html`, a view-only page driven through
+`window.jpvView.setSource(text)` and `window.jpvView.setTheme(dark, background)`.
+
 ## Host bridge (for IDE plugins)
 
 The page exposes `window.jpv.setSource(text)` and calls

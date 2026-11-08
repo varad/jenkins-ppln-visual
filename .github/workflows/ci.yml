@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:   # reused by release.yml
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck, test and build web viewer
+        run: |
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # buildWebview runs `pnpm build:embed` itself, so pnpm and Node must already be on PATH.
+      - name: Build IntelliJ plugin
+        working-directory: packages/intellij
+        run: ./gradlew buildPlugin --no-daemon
+
+      - name: Upload web viewer
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-viewer
+          path: |
+            packages/web/dist/
+            packages/web/dist-embed/
+          if-no-files-found: error
+
+      - name: Upload IntelliJ plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: intellij-plugin
+          path: packages/intellij/build/distributions/*.zip
+          if-no-files-found: error

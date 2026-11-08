@@ -7,3 +7,6 @@ dist
 *.sqlite-shm
 *.sqlite-wal
 .DS_Store
+dist-embed
+.gradle
+build
