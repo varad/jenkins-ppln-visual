@@ -35,7 +35,7 @@ function outline(stages: Stage[], indent = ''): string[] {
 
 describe('fixtures', () => {
   for (const dir of ['handwritten', 'public']) {
-    for (const f of readdirSync(join(FIXTURES, dir)).sort()) {
+    for (const f of readdirSync(join(FIXTURES, dir)).filter((name) => !name.startsWith('.')).sort()) {
       it(`${dir}/${f}`, () => {
         const r = parseJenkinsfile(read(`${dir}/${f}`));
         const summary = {

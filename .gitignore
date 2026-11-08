@@ -12,3 +12,4 @@ dist-embed
 build
 .intellijPlatform
 .kotlin
+fixtures/**/.idea
