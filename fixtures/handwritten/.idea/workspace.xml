@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="08949d68-0f89-44bd-a00d-f9a060d86fbb" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/../../README.md" beforeDir="false" afterPath="$PROJECT_DIR$/../../README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../packages/intellij/src/main/kotlin/dev/jpv/intellij/JenkinsfileEditor.kt" beforeDir="false" afterPath="$PROJECT_DIR$/../../packages/intellij/src/main/kotlin/dev/jpv/intellij/JenkinsfileEditor.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../packages/intellij/src/main/kotlin/dev/jpv/intellij/PipelinePreview.kt" beforeDir="false" afterPath="$PROJECT_DIR$/../../packages/intellij/src/main/kotlin/dev/jpv/intellij/PipelinePreview.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../packages/web/src/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../packages/web/src/App.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../packages/web/src/embed.css" beforeDir="false" afterPath="$PROJECT_DIR$/../../packages/web/src/embed.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../packages/web/src/embed.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../packages/web/src/embed.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../packages/web/src/stages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/../../packages/web/src/stages.ts" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 0,
+  &quot;fromUser&quot;: false
+}</component>
+  <component name="ProjectId" id="3Lq9MXf8uljIJP0bwOy6cgKL7Qa" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;click-to-source&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;
+  }
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-ac68fc9d2b05-intellij.indexing.shared.core-IU-263.7307.200" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="08949d68-0f89-44bd-a00d-f9a060d86fbb" name="Changes" comment="" />
+      <created>1794170684463</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1794170684463</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
