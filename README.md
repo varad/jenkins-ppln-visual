@@ -44,6 +44,8 @@ can paste into GitHub Markdown; **Download SVG** saves the picture.
 `Jenkinsfile`, `*.Jenkinsfile` and `Jenkinsfile.*`. It targets IntelliJ 2026.3 and
 needs `pnpm install` to have been run.
 
+![Dual view in IntelliJ: a Jenkinsfile above its pipeline diagram](docs/intellij-plugin.png)
+
 ```sh
 cd packages/intellij
 ./gradlew runIde        # try it in a sandbox IDE

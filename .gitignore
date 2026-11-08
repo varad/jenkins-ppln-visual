@@ -13,3 +13,4 @@ build
 .intellijPlatform
 .kotlin
 fixtures/**/.idea
+fixtures/**/lib

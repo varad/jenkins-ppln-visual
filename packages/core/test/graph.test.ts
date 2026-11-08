@@ -8,7 +8,8 @@ const OUT = process.env.JPV_OUT;
 
 describe('graph + layout + exports', () => {
   for (const dir of ['handwritten', 'public']) {
-    for (const f of readdirSync(join(FIXTURES, dir)).filter((name) => !name.startsWith('.')).sort()) {
+    const entries = readdirSync(join(FIXTURES, dir), { withFileTypes: true });
+    for (const f of entries.filter((e) => e.isFile() && !e.name.startsWith('.')).map((e) => e.name).sort()) {
       it(`${dir}/${f}`, async () => {
         const r = parseJenkinsfile(readFileSync(join(FIXTURES, dir, f), 'utf8'));
         if (!r.pipeline) return;
