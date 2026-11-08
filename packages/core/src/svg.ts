@@ -12,10 +12,12 @@ const C = {
   stage: '#8cc04f',
   post: '#e3b341',
   when: '#bf8700',
+  ring: '#488cdb',
 };
 
 const RAIL_W = 3;
 const CORNER = 10;
+const RING_W = 3;
 
 const DARK_MODE = `<style>@media (prefers-color-scheme: dark){.jpv-ink{fill:#e6edf3}.jpv-quiet{fill:#8d96a0}}</style>`;
 
@@ -58,9 +60,12 @@ function shape(n: LaidOutNode): string {
       const circle = n.conditional
         ? `<circle cx="${cx}" cy="${cy}" r="${r - RAIL_W / 2}" fill="transparent" stroke="${C.rail}" stroke-width="${RAIL_W}"/>`
         : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${n.kind === 'post' ? C.post : C.stage}"/>`;
+      // Hidden unless a preview's hover rule shows it, so downloaded SVGs never display it.
+      const ring = `<circle class="jpv-ring" cx="${cx}" cy="${cy}" r="${r + RING_W / 2}" fill="none" stroke="${C.ring}" stroke-width="${RING_W}" visibility="hidden"/>`;
       const top = Y + H + LABEL_GAP - 3;
       return (
         circle +
+        ring +
         n.lines.map((l, i) => text(cx, top + (i + 1) * LINE_H, l, middle)).join('') +
         n.sublines.map((l, i) => text(cx, top + (n.lines.length + i + 1) * LINE_H, l, 'text-anchor="middle" font-size="11"', 'quiet')).join('')
       );

@@ -91,7 +91,6 @@ code { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
 
 /* SVG preview */
 .svg-preview { position: absolute; inset: 0; }
-.svg-preview [data-stage-id]:hover > circle, .svg-preview [data-post]:hover > circle { stroke: var(--accent); stroke-width: 3; }
 .svg-preview [data-stage-id].selected > circle { stroke: var(--accent); stroke-width: 3; }
 .svg-preview [data-stage-id].selected > text { font-weight: 700; }
 

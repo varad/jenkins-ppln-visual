@@ -65,6 +65,8 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
     @Volatile
     private var pageLoaded = false
 
+    private var caretOffset = 0
+
     init {
         open.add(this)
         Disposer.register(this, browser)
@@ -118,6 +120,12 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
 
     fun refresh() = scheduleRender(0)
 
+    /** Call on the EDT. Rings the innermost stage containing [offset] in the diagram, if there is one. */
+    fun highlightStageAt(offset: Int) {
+        caretOffset = offset
+        if (pageLoaded) browser.cefBrowser.executeJavaScript("window.jpvView.setCaret($offset);", browser.cefBrowser.url, 0)
+    }
+
     private fun scheduleRender(delayMs: Int) {
         renders.cancelAllRequests()
         renders.addRequest(::render, delayMs)
@@ -128,6 +136,7 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
         val background = "#" + ColorUtil.toHex(UIUtil.getPanelBackground())
         val script = "window.jpvView.setTheme(${!JBColor.isBright()}, '$background');" +
             "window.jpvView.setWrap($wrapDiagram);" +
+            "window.jpvView.setCaret($caretOffset);" +
             "window.jpvView.setSource(${gson.toJson(document.text)});"
         browser.cefBrowser.executeJavaScript(script, browser.cefBrowser.url, 0)
     }

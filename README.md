@@ -52,7 +52,8 @@ cd packages/intellij
 
 It shows `packages/web/embed.html`, a diagram-only page driven through
 `window.jpvView.setSource(text)` and `window.jpvView.setTheme(dark, background)`.
-In Dual view, clicking a stage or the post node moves the caret to it in the code.
+In Dual view, clicking a stage or the post node moves the caret to it in the code,
+and placing the caret inside a stage in the code rings that stage in the diagram.
 
 ## Host bridge (for IDE plugins)
 

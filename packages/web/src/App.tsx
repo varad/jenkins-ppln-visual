@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildGraph, layoutGraph, parseJenkinsfile, toMermaid, toSvg, type PipelineLayout, type SourceRange, type Stage } from '@jpv/core';
+import { buildGraph, layoutGraph, parseJenkinsfile, toMermaid, toSvg, type PipelineLayout, type SourceRange } from '@jpv/core';
 import { Canvas } from './Canvas';
 import { Details } from './Details';
 import { Editor, type EditorHandle } from './Editor';
 import { SAMPLES } from './samples';
-import { indexStages } from './stages';
+import { indexStages, innermostStage } from './stages';
 
 /** Host bridge, so IDE plugins (IntelliJ via JCEF, VS Code webview) can drive the viewer. */
 declare global {
@@ -97,10 +97,7 @@ export function App() {
 
   const onCursor = useCallback(
     (offset: number) => {
-      // innermost stage containing the cursor
-      let best: Stage | undefined;
-      for (const s of stages.values()) if (offset >= s.loc.start && offset <= s.loc.end && (!best || s.loc.end - s.loc.start < best.loc.end - best.loc.start)) best = s;
-      setSelected(best?.id);
+      setSelected(innermostStage(stages, offset)?.id);
     },
     [stages],
   );

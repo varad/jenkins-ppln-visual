@@ -9,6 +9,8 @@ import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.editor.ScrollType
+import com.intellij.openapi.editor.event.CaretEvent
+import com.intellij.openapi.editor.event.CaretListener
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorPolicy
@@ -65,6 +67,11 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
         // so every Jenkinsfile opens in the same mode, including after an IDE restart.
         setLayout(layoutMode)
         view.onStageClick = { offset -> if (getLayout() == Layout.SHOW_EDITOR_AND_PREVIEW) moveCaretTo(offset) }
+        textEditor.editor.caretModel.addCaretListener(object : CaretListener {
+            override fun caretPositionChanged(event: CaretEvent) {
+                view.highlightStageAt(textEditor.editor.caretModel.offset)
+            }
+        }, this)
     }
 
     private fun moveCaretTo(offset: Int) {

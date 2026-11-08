@@ -1,7 +1,7 @@
-import { useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { parseJenkinsfile, toSvg } from '@jpv/core';
-import { indexStages } from './stages';
+import { indexStages, innermostStage } from './stages';
 import { useWrappedLayout } from './useWrappedLayout';
 import './embed.css';
 
@@ -12,12 +12,14 @@ declare global {
       setSource: (text: string) => void;
       setTheme: (dark: boolean, background: string) => void;
       setWrap: (wrap: boolean) => void;
+      setCaret: (offset: number | null) => void;
     };
   }
 }
 
 let source: string | null = null;
 let wrap = true;
+let caret: number | null = null;
 const listeners = new Set<() => void>();
 
 // Defined at module scope so it exists by the time the host sees the page's load event.
@@ -32,6 +34,10 @@ window.jpvView = {
   },
   setWrap(value) {
     wrap = value;
+    listeners.forEach((l) => l());
+  },
+  setCaret(offset) {
+    caret = offset;
     listeners.forEach((l) => l());
   },
 };
@@ -54,9 +60,17 @@ function Viewer() {
   const text = useSyncExternalStore(subscribe, () => source);
   const result = useMemo(() => parseJenkinsfile(text ?? ''), [text]);
   const wrapped = useSyncExternalStore(subscribe, () => wrap);
-  const { setContainer, layout } = useWrappedLayout(result.pipeline, wrapped);
+  const { container, setContainer, layout } = useWrappedLayout(result.pipeline, wrapped);
   const svg = useMemo(() => (layout ? toSvg(layout) : ''), [layout]);
   const stages = useMemo(() => indexStages(result.pipeline?.stages ?? []), [result]);
+  const caretOffset = useSyncExternalStore(subscribe, () => caret);
+  const selected = useMemo(() => (caretOffset === null ? undefined : innermostStage(stages, caretOffset)?.id), [stages, caretOffset]);
+
+  useEffect(() => {
+    container?.querySelectorAll('[data-stage-id]').forEach((el) => {
+      el.classList.toggle('selected', el.getAttribute('data-stage-id') === selected);
+    });
+  }, [container, svg, selected]);
 
   if (text === null) return null;
   if (!result.pipeline) {

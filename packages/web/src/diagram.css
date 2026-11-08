@@ -5,3 +5,4 @@
 .svg-preview svg { display: block; }
 /* bounding-box: an SVG group is otherwise only hit on its painted parts, leaving a dead gap between circle and label. */
 .svg-preview [data-stage-id], .svg-preview [data-post] { cursor: pointer; pointer-events: bounding-box; }
+.svg-preview [data-stage-id]:hover > .jpv-ring, .svg-preview [data-post]:hover > .jpv-ring { visibility: visible; }
