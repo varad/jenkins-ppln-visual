@@ -22,6 +22,20 @@ describe('graph + layout + exports', () => {
         const layout = await layoutGraph(g);
         expect(layout.width).toBeGreaterThan(0);
         for (const n of layout.nodes) expect(Number.isFinite(n.absX) && Number.isFinite(n.absY)).toBe(true);
+        expect(await layoutGraph(g, { maxWidth: 1e6 })).toEqual(layout);
+
+        const wrapped = await layoutGraph(g, { maxWidth: 600 });
+        for (const n of wrapped.nodes) expect(Number.isFinite(n.absX) && Number.isFinite(n.absY)).toBe(true);
+        expect(toSvg(wrapped).match(/data-stage-id="/g)?.length ?? 0).toBe(layout.nodes.filter((n) => n.stageId).length);
+        for (const e of wrapped.edges.filter((e) => e.parentId === undefined)) {
+          const crossesRows = e.points[0].y !== e.points[e.points.length - 1].y;
+          expect(e.points.length).toBe(crossesRows ? 6 : 2);
+        }
+        // Only a single top-level box that is itself too wide may overflow the limit.
+        if (wrapped.width > 600) {
+          expect(wrapped.nodes.some((n) => n.parentId === undefined && n.width > 600 - 48)).toBe(true);
+        }
+
         const mm = toMermaid(r.pipeline);
         expect(mm.startsWith('flowchart LR')).toBe(true);
         expect(mm).toMatchSnapshot();

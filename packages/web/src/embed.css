@@ -18,7 +18,8 @@
 
 html, body, #root { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 13px/1.45 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; }
-.svg-preview { height: 100%; overflow: auto; }
+/* The stable gutter stops a vertical scrollbar from changing the width the layout wraps to. */
+.svg-preview { height: 100%; overflow: auto; scrollbar-gutter: stable; }
 .svg-preview svg { display: block; }
 .empty { padding: 48px; max-width: 520px; color: var(--quiet); }
 .empty h2 { color: var(--ink); font-size: 16px; }

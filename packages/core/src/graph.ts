@@ -206,6 +206,10 @@ const ROW_GAP = 14;
 const TRUNK = 26;
 const ROW_LEAD = 8;
 const PAD = 24;
+/** Vertical space between wrapped rows; the connector runs along its middle. */
+const WRAP_GAP = 32;
+/** How far outside a wrapped row the connector turns. Must stay below PAD. */
+const WRAP_TURN = 12;
 
 const clip = (s: string) => (s.length > MAX_LINE ? `${s.slice(0, MAX_LINE - 1)}…` : s);
 
@@ -237,7 +241,12 @@ interface Box {
 
 type Geometry = Pick<LaidOutNode, 'absX' | 'absY' | 'width' | 'height' | 'lines' | 'sublines' | 'rowLabel'>;
 
-export async function layoutGraph(g: PipelineGraph): Promise<PipelineLayout> {
+export interface LayoutOptions {
+  /** Break top-level stages onto new rows to fit this width. Omit for a single row. */
+  maxWidth?: number;
+}
+
+export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): Promise<PipelineLayout> {
   const children = new Map<string | undefined, GNode[]>();
   for (const n of g.nodes) children.set(n.parentId, [...(children.get(n.parentId) ?? []), n]);
   const byId = new Map(g.nodes.map((n) => [n.id, n]));
@@ -268,21 +277,20 @@ export async function layoutGraph(g: PipelineGraph): Promise<PipelineLayout> {
     };
   };
 
-  const row = (items: GNode[]): Box => {
-    const boxes = items.map(box);
-    return {
-      width: boxes.reduce((w, b) => w + b.width, 0) + STAGE_GAP * Math.max(0, boxes.length - 1),
-      up: Math.max(STAGE_R, ...boxes.map((b) => b.up)),
-      down: Math.max(STAGE_R, ...boxes.map((b) => b.down)),
-      place: (x, rail) => {
-        let cx = x;
-        for (const b of boxes) {
-          b.place(cx, rail);
-          cx += b.width + STAGE_GAP;
-        }
-      },
-    };
-  };
+  const rowOf = (boxes: Box[]): Box => ({
+    width: boxes.reduce((w, b) => w + b.width, 0) + STAGE_GAP * Math.max(0, boxes.length - 1),
+    up: Math.max(STAGE_R, ...boxes.map((b) => b.up)),
+    down: Math.max(STAGE_R, ...boxes.map((b) => b.down)),
+    place: (x, rail) => {
+      let cx = x;
+      for (const b of boxes) {
+        b.place(cx, rail);
+        cx += b.width + STAGE_GAP;
+      }
+    },
+  });
+
+  const row = (items: GNode[]): Box => rowOf(items.map(box));
 
   const stack = (group: GNode, items: GNode[]): Box => {
     const boxes = items.map(box);
@@ -362,14 +370,48 @@ export async function layoutGraph(g: PipelineGraph): Promise<PipelineLayout> {
     return n.kind === 'group' ? group(n) : leaf(n);
   }
 
-  const root = row(children.get(undefined) ?? []);
-  root.place(PAD, PAD + root.up);
+  // Only the top-level sequence wraps; a box wider than the limit gets a row to itself.
+  const limit = (opts.maxWidth ?? Infinity) - 2 * PAD;
+  const rowOfNode = new Map<string, number>();
+  const grouped: Box[][] = [[]];
+  let usedWidth = 0;
+  for (const n of children.get(undefined) ?? []) {
+    const b = box(n);
+    const current = grouped[grouped.length - 1];
+    if (current.length && usedWidth + STAGE_GAP + b.width > limit) {
+      grouped.push([b]);
+      usedWidth = b.width;
+    } else {
+      usedWidth += (current.length ? STAGE_GAP : 0) + b.width;
+      current.push(b);
+    }
+    rowOfNode.set(n.id, grouped.length - 1);
+  }
+
+  const rows = grouped.map(rowOf);
+  let top = PAD;
+  const rowExtents = rows.map((r) => {
+    r.place(PAD, top + r.up);
+    const extent = { right: PAD + r.width, channelY: top + r.up + r.down + WRAP_GAP / 2 };
+    top += r.up + r.down + WRAP_GAP;
+    return extent;
+  });
 
   const edges: LaidOutEdge[] = g.edges.map((e) => {
     const a = ports.get(e.source)!;
     const b = ports.get(e.target)!;
     const from = { x: a.outX, y: a.y };
     const to = { x: b.inX, y: b.y };
+    const sourceRow = rowOfNode.get(e.source);
+    if (sourceRow !== undefined && sourceRow !== rowOfNode.get(e.target)) {
+      const { right, channelY } = rowExtents[sourceRow];
+      const turnX = right + WRAP_TURN;
+      const leftX = PAD - WRAP_TURN;
+      return {
+        ...e,
+        points: [from, { x: turnX, y: a.y }, { x: turnX, y: channelY }, { x: leftX, y: channelY }, { x: leftX, y: b.y }, to],
+      };
+    }
     if (a.y === b.y) return { ...e, points: [from, to] };
     const corner = byId.get(e.target)?.kind === 'join' ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
     return { ...e, points: [from, corner, to] };
@@ -378,7 +420,7 @@ export async function layoutGraph(g: PipelineGraph): Promise<PipelineLayout> {
   return {
     nodes: g.nodes.map((n) => ({ ...n, ...placed.get(n.id)! })),
     edges: [...edges, ...leads],
-    width: Math.ceil(root.width + 2 * PAD),
-    height: Math.ceil(root.up + root.down + 2 * PAD),
+    width: Math.ceil(Math.max(...rows.map((r) => r.width)) + 2 * PAD),
+    height: Math.ceil(top - WRAP_GAP + PAD),
   };
 }

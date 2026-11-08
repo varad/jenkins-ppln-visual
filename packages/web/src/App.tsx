@@ -31,6 +31,24 @@ function download(name: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+const WRAP_KEY = 'jpv.wrap';
+
+function readWrap() {
+  try {
+    return localStorage.getItem(WRAP_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function saveWrap(wrap: boolean) {
+  try {
+    localStorage.setItem(WRAP_KEY, String(wrap));
+  } catch {
+    // Storage can be blocked; the choice then just lasts until reload.
+  }
+}
+
 const initialSample = SAMPLES.find((s) => s.name.includes('kitchen-sink')) ?? SAMPLES[0];
 
 export function App() {
@@ -42,6 +60,7 @@ export function App() {
   const [selected, setSelected] = useState<string | undefined>();
   const [toast, setToast] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [wrap, setWrap] = useState(readWrap);
   const editor = useRef<EditorHandle | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -170,6 +189,17 @@ export function App() {
         <span className={`status ${errors ? 'err' : warnings ? 'warn' : 'ok'}`}>
           {result.kind === 'scripted' ? 'Scripted pipeline' : errors ? `${errors} error${errors > 1 ? 's' : ''}` : warnings ? `${warnings} warning${warnings > 1 ? 's' : ''}` : `${stages.size} stages`}
         </span>
+        <label className="sample" title="Wrap the diagram to the width of the preview">
+          <input
+            type="checkbox"
+            checked={wrap}
+            onChange={(e) => {
+              setWrap(e.target.checked);
+              saveWrap(e.target.checked);
+            }}
+          />
+          Wrap
+        </label>
         <button
           disabled={!result.pipeline}
           onClick={async () => {
@@ -206,7 +236,7 @@ export function App() {
         </section>
         <section className="pane-canvas">
           {result.pipeline ? (
-            <Canvas layout={layout} selectedStageId={selected} onSelect={select} />
+            <Canvas pipeline={result.pipeline} wrap={wrap} selectedStageId={selected} onSelect={select} />
           ) : (
             <div className="empty">
               <h2>{result.kind === 'scripted' ? 'This is a scripted pipeline' : 'No declarative pipeline found'}</h2>

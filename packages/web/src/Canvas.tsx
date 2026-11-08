@@ -1,25 +1,27 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { toSvg, type PipelineLayout } from '@jpv/core';
+import { useEffect, useMemo } from 'react';
+import { toSvg, type Pipeline } from '@jpv/core';
+import { useWrappedLayout } from './useWrappedLayout';
 
 interface Props {
-  layout: PipelineLayout | null;
+  pipeline: Pipeline;
+  wrap: boolean;
   selectedStageId?: string;
   onSelect: (stageId: string | undefined) => void;
 }
 
-export function Canvas({ layout, selectedStageId, onSelect }: Props) {
-  const container = useRef<HTMLDivElement>(null);
+export function Canvas({ pipeline, wrap, selectedStageId, onSelect }: Props) {
+  const { container, setContainer, layout } = useWrappedLayout(pipeline, wrap);
   const svg = useMemo(() => (layout ? toSvg(layout) : ''), [layout]);
 
   useEffect(() => {
-    container.current?.querySelectorAll('[data-stage-id]').forEach((el) => {
+    container?.querySelectorAll('[data-stage-id]').forEach((el) => {
       el.classList.toggle('selected', el.getAttribute('data-stage-id') === selectedStageId);
     });
-  }, [svg, selectedStageId]);
+  }, [container, svg, selectedStageId]);
 
   return (
     <div
-      ref={container}
+      ref={setContainer}
       className="svg-preview"
       // toSvg escapes all text taken from the Jenkinsfile.
       dangerouslySetInnerHTML={{ __html: svg }}

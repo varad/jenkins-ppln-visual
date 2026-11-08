@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
-import { buildGraph, layoutGraph, parseJenkinsfile, toSvg, type PipelineLayout } from '@jpv/core';
+import { parseJenkinsfile, toSvg } from '@jpv/core';
+import { useWrappedLayout } from './useWrappedLayout';
 import './embed.css';
 
 /** View-only page for IDE plugins: the IDE owns the editor and pushes text and theme in. */
@@ -9,11 +10,13 @@ declare global {
     jpvView: {
       setSource: (text: string) => void;
       setTheme: (dark: boolean, background: string) => void;
+      setWrap: (wrap: boolean) => void;
     };
   }
 }
 
 let source: string | null = null;
+let wrap = true;
 const listeners = new Set<() => void>();
 
 // Defined at module scope so it exists by the time the host sees the page's load event.
@@ -26,6 +29,10 @@ window.jpvView = {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     document.documentElement.style.setProperty('--bg', background);
   },
+  setWrap(value) {
+    wrap = value;
+    listeners.forEach((l) => l());
+  },
 };
 
 function subscribe(listener: () => void) {
@@ -36,22 +43,8 @@ function subscribe(listener: () => void) {
 function Viewer() {
   const text = useSyncExternalStore(subscribe, () => source);
   const result = useMemo(() => parseJenkinsfile(text ?? ''), [text]);
-  const [layout, setLayout] = useState<PipelineLayout | null>(null);
-
-  useEffect(() => {
-    if (!result.pipeline) {
-      setLayout(null);
-      return;
-    }
-    let cancelled = false;
-    layoutGraph(buildGraph(result.pipeline))
-      .then((l) => !cancelled && setLayout(l))
-      .catch((e) => console.error(e));
-    return () => {
-      cancelled = true;
-    };
-  }, [result]);
-
+  const wrapped = useSyncExternalStore(subscribe, () => wrap);
+  const { setContainer, layout } = useWrappedLayout(result.pipeline, wrapped);
   const svg = useMemo(() => (layout ? toSvg(layout) : ''), [layout]);
 
   if (text === null) return null;
@@ -68,7 +61,7 @@ function Viewer() {
     );
   }
   // toSvg escapes all text taken from the Jenkinsfile.
-  return <div className="svg-preview" dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <div ref={setContainer} className="svg-preview" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
 createRoot(document.getElementById('root')!).render(<Viewer />);

@@ -2,6 +2,7 @@ package dev.jpv.intellij
 
 import com.google.gson.Gson
 import com.intellij.ide.ui.LafManagerListener
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.event.DocumentEvent
@@ -23,6 +24,12 @@ import java.beans.PropertyChangeListener
 import javax.swing.JComponent
 
 private const val DEBOUNCE_MS = 200
+private const val WRAP_KEY = "jpv.wrap"
+
+/** Whether diagrams wrap to the window width. Shared by the whole IDE. */
+internal var wrapDiagram: Boolean
+    get() = PropertiesComponent.getInstance().getBoolean(WRAP_KEY, true)
+    set(value) = PropertiesComponent.getInstance().setValue(WRAP_KEY, value, true)
 
 /** Shows the pipeline drawing for [document] and redraws it as the document or IDE theme changes. */
 class PipelinePreview(private val file: VirtualFile, private val document: Document) :
@@ -62,6 +69,8 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
         return page.use { it.readBytes().toString(Charsets.UTF_8) }
     }
 
+    fun refresh() = scheduleRender(0)
+
     private fun scheduleRender(delayMs: Int) {
         renders.cancelAllRequests()
         renders.addRequest(::render, delayMs)
@@ -71,6 +80,7 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
         if (!pageLoaded) return
         val background = "#" + ColorUtil.toHex(UIUtil.getPanelBackground())
         val script = "window.jpvView.setTheme(${!JBColor.isBright()}, '$background');" +
+            "window.jpvView.setWrap($wrapDiagram);" +
             "window.jpvView.setSource(${gson.toJson(document.text)});"
         browser.cefBrowser.executeJavaScript(script, browser.cefBrowser.url, 0)
     }
