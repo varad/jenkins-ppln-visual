@@ -41,7 +41,7 @@ can paste into GitHub Markdown; **Download SVG** saves the picture.
 ## IntelliJ plugin
 
 `packages/intellij` adds **Code**, **View** and **Dual** icons above the editor for
-`Jenkinsfile`, `*.Jenkinsfile` and `Jenkinsfile.*`. It targets IntelliJ 2022.1 and
+`Jenkinsfile`, `*.Jenkinsfile` and `Jenkinsfile.*`. It targets IntelliJ 2026.3 and
 needs `pnpm install` to have been run.
 
 ```sh
@@ -50,8 +50,9 @@ cd packages/intellij
 ./gradlew buildPlugin   # build/distributions/*.zip, for Install Plugin from Disk
 ```
 
-It shows `packages/web/embed.html`, a view-only page driven through
+It shows `packages/web/embed.html`, a diagram-only page driven through
 `window.jpvView.setSource(text)` and `window.jpvView.setTheme(dark, background)`.
+In Dual view, clicking a stage or the post node moves the caret to it in the code.
 
 ## Host bridge (for IDE plugins)
 

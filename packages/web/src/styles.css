@@ -1,3 +1,5 @@
+@import './diagram.css';
+
 :root {
   --bg: #ffffff;
   --panel: #f6f8fa;
@@ -88,11 +90,8 @@ code { font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
 .empty h2 { color: var(--ink); font-size: 16px; }
 
 /* SVG preview */
-/* The stable gutter stops a vertical scrollbar from changing the width the layout wraps to. */
-.svg-preview { position: absolute; inset: 0; overflow: auto; scrollbar-gutter: stable; }
-.svg-preview svg { display: block; }
-.svg-preview [data-stage-id] { cursor: pointer; }
-.svg-preview [data-stage-id]:hover > circle { stroke: var(--accent); stroke-width: 3; }
+.svg-preview { position: absolute; inset: 0; }
+.svg-preview [data-stage-id]:hover > circle, .svg-preview [data-post]:hover > circle { stroke: var(--accent); stroke-width: 3; }
 .svg-preview [data-stage-id].selected > circle { stroke: var(--accent); stroke-width: 3; }
 .svg-preview [data-stage-id].selected > text { font-weight: 700; }
 

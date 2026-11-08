@@ -1,14 +1,18 @@
 package dev.jpv.intellij
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.actionSystem.ActionGroup
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.actionSystem.ToggleAction
+import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorPolicy
+import com.intellij.openapi.fileEditor.FileEditorState
 import com.intellij.openapi.fileEditor.FileEditorProvider
 import com.intellij.openapi.fileEditor.TextEditor
 import com.intellij.openapi.fileEditor.TextEditorWithPreview
@@ -16,8 +20,19 @@ import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.ui.jcef.JBCefApp
 import javax.swing.Icon
+import javax.swing.JComponent
+
+private const val LAYOUT_KEY = "jpv.layout"
+
+/** The Code / View / Dual mode. Shared by every Jenkinsfile and kept across IDE restarts. */
+internal var layoutMode: TextEditorWithPreview.Layout
+    get() = PropertiesComponent.getInstance().getValue(LAYOUT_KEY)
+        ?.let { name -> TextEditorWithPreview.Layout.entries.firstOrNull { it.name == name } }
+        ?: TextEditorWithPreview.Layout.SHOW_EDITOR
+    set(value) = PropertiesComponent.getInstance().setValue(LAYOUT_KEY, value.name)
 
 class JenkinsfileEditorProvider : FileEditorProvider, DumbAware {
     override fun accept(project: Project, file: VirtualFile): Boolean =
@@ -44,8 +59,34 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
     TextEditorWithPreview(code, view, "Jenkinsfile", Layout.SHOW_EDITOR, true) {
 
     init {
-        // The base class otherwise reopens every file in whichever mode was used last.
-        setLayout(Layout.SHOW_EDITOR)
+        // The base class restores whatever mode this editor used last. Apply the shared mode instead,
+        // so every Jenkinsfile opens in the same mode, including after an IDE restart.
+        setLayout(layoutMode)
+        view.onStageClick = { offset -> if (layout == Layout.SHOW_EDITOR_AND_PREVIEW) moveCaretTo(offset) }
+    }
+
+    private fun moveCaretTo(offset: Int) {
+        val editor = textEditor.editor
+        // The diagram can lag behind the text by the redraw delay, so the offset may be past the end.
+        editor.caretModel.moveToOffset(offset.coerceAtMost(editor.document.textLength))
+        editor.selectionModel.removeSelection()
+        editor.scrollingModel.scrollToCaret(ScrollType.CENTER)
+        // An unfocused editor doesn't show its caret.
+        IdeFocusManager.getGlobalInstance().requestFocus(editor.contentComponent, true)
+    }
+
+    override fun setState(state: FileEditorState) {
+        super.setState(state)
+        // The saved state holds the mode this file used last. Re-apply the shared mode after it.
+        setLayout(layoutMode)
+    }
+
+    override fun getComponent(): JComponent {
+        val component = super.getComponent()
+        // The base class builds the component from its own per-file layout setting, which can
+        // overwrite the shared mode set in init. Put the shared mode back when they differ.
+        if (layout != layoutMode) setLayout(layoutMode)
+        return component
     }
 
     override fun isShowFloatingToolbar() = false
@@ -61,21 +102,28 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
     private inner class ModeAction(text: String, icon: Icon, private val mode: Layout) :
         ToggleAction(text, text, icon), DumbAware {
 
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+
         override fun isSelected(e: AnActionEvent) = layout == mode
 
         override fun setSelected(e: AnActionEvent, state: Boolean) {
-            if (state) layout = mode
+            if (state) {
+                layoutMode = mode
+                setLayout(mode)
+            }
         }
     }
 
     private inner class WrapAction :
         ToggleAction("Wrap", "Wrap the diagram to the window width", AllIcons.Actions.ToggleSoftWrap), DumbAware {
 
+        override fun getActionUpdateThread() = ActionUpdateThread.EDT
+
         override fun isSelected(e: AnActionEvent) = wrapDiagram
 
         override fun setSelected(e: AnActionEvent, state: Boolean) {
             wrapDiagram = state
-            view.refresh()
+            PipelinePreview.refreshAll()
         }
     }
 }

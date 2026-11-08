@@ -1,10 +1,11 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { parseJenkinsfile, toSvg } from '@jpv/core';
+import { indexStages } from './stages';
 import { useWrappedLayout } from './useWrappedLayout';
 import './embed.css';
 
-/** View-only page for IDE plugins: the IDE owns the editor and pushes text and theme in. */
+/** Diagram page for IDE plugins: the IDE owns the editor, pushes text and theme in, and hears about stage clicks. */
 declare global {
   interface Window {
     jpvView: {
@@ -46,6 +47,7 @@ function Viewer() {
   const wrapped = useSyncExternalStore(subscribe, () => wrap);
   const { setContainer, layout } = useWrappedLayout(result.pipeline, wrapped);
   const svg = useMemo(() => (layout ? toSvg(layout) : ''), [layout]);
+  const stages = useMemo(() => indexStages(result.pipeline?.stages ?? []), [result]);
 
   if (text === null) return null;
   if (!result.pipeline) {
@@ -61,7 +63,19 @@ function Viewer() {
     );
   }
   // toSvg escapes all text taken from the Jenkinsfile.
-  return <div ref={setContainer} className="svg-preview" dangerouslySetInnerHTML={{ __html: svg }} />;
+  return (
+    <div
+      ref={setContainer}
+      className="svg-preview"
+      dangerouslySetInnerHTML={{ __html: svg }}
+      onClick={(e) => {
+        const target = e.target as Element;
+        const id = target.closest('[data-stage-id]')?.getAttribute('data-stage-id');
+        const range = id ? stages.get(id)?.headerLoc : target.closest('[data-post]') ? result.pipeline?.post?.loc : undefined;
+        if (range) window.jpvHost?.onSelect?.(range);
+      }}
+    />
+  );
 }
 
 createRoot(document.getElementById('root')!).render(<Viewer />);

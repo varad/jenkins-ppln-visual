@@ -1,9 +1,7 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
     id("java")
-    kotlin("jvm") version "1.8.22"
-    id("org.jetbrains.intellij") version "1.13.3"
+    kotlin("jvm") version "2.4.21"
+    id("org.jetbrains.intellij.platform") version "2.20.0"
 }
 
 group = "dev.jpv"
@@ -11,34 +9,38 @@ version = "0.1.0"
 
 repositories {
     mavenCentral()
-}
-
-java {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-}
-
-tasks.withType<KotlinCompile> {
-    kotlinOptions {
-        jvmTarget = "11"
-        apiVersion = "1.6" // the Kotlin runtime bundled with IntelliJ 2022.1
-        languageVersion = "1.6"
+    intellijPlatform {
+        defaultRepositories()
     }
 }
 
-intellij {
-    version.set("2022.1.4")
-    type.set("IC")
+kotlin {
+    jvmToolchain(25)
 }
 
-tasks.patchPluginXml {
-    sinceBuild.set("221")
-    untilBuild.set("221.*")
+dependencies {
+    intellijPlatform {
+        intellijIdea("2026.3")
+        bundledPlugin("com.intellij.modules.jcef")
+    }
 }
 
-// Skips the "no searchable options" IDE launch, which a viewer with no settings doesn't need.
-tasks.buildSearchableOptions {
-    enabled = false
+intellijPlatform {
+    // Skips the "no searchable options" IDE launch, which a viewer with no settings doesn't need.
+    buildSearchableOptions = false
+
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = "263"
+            untilBuild = "263.*"
+        }
+    }
+
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
 }
 
 val repoRoot = rootDir.resolve("../..").normalize()

@@ -4,6 +4,7 @@ import { Canvas } from './Canvas';
 import { Details } from './Details';
 import { Editor, type EditorHandle } from './Editor';
 import { SAMPLES } from './samples';
+import { indexStages } from './stages';
 
 /** Host bridge, so IDE plugins (IntelliJ via JCEF, VS Code webview) can drive the viewer. */
 declare global {
@@ -11,16 +12,6 @@ declare global {
     jpv?: { setSource: (text: string) => void };
     jpvHost?: { onSelect?: (range: SourceRange) => void };
   }
-}
-
-function indexStages(stages: Stage[], map = new Map<string, Stage>()) {
-  for (const s of stages) {
-    map.set(s.id, s);
-    if (s.body.kind === 'stages') indexStages(s.body.stages, map);
-    if (s.body.kind === 'parallel') indexStages(s.body.branches, map);
-    if (s.body.kind === 'matrix') indexStages(s.body.matrix.stages, map);
-  }
-  return map;
 }
 
 function download(name: string, text: string, type: string) {
@@ -236,7 +227,13 @@ export function App() {
         </section>
         <section className="pane-canvas">
           {result.pipeline ? (
-            <Canvas pipeline={result.pipeline} wrap={wrap} selectedStageId={selected} onSelect={select} />
+            <Canvas
+              pipeline={result.pipeline}
+              wrap={wrap}
+              selectedStageId={selected}
+              onSelect={select}
+              onPostClick={() => result.pipeline?.post && reveal(result.pipeline.post.loc)}
+            />
           ) : (
             <div className="empty">
               <h2>{result.kind === 'scripted' ? 'This is a scripted pipeline' : 'No declarative pipeline found'}</h2>

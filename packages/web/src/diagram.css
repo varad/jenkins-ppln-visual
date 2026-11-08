@@ -1,0 +1,7 @@
+/* Diagram rules shared by the web app (styles.css) and the IDE page (embed.css). */
+
+/* The stable gutter stops a vertical scrollbar from changing the width the layout wraps to. */
+.svg-preview { overflow: auto; scrollbar-gutter: stable; }
+.svg-preview svg { display: block; }
+/* bounding-box: an SVG group is otherwise only hit on its painted parts, leaving a dead gap between circle and label. */
+.svg-preview [data-stage-id], .svg-preview [data-post] { cursor: pointer; pointer-events: bounding-box; }

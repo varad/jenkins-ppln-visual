@@ -68,12 +68,13 @@ function shape(n: LaidOutNode): string {
   }
 }
 
-/** Stage nodes carry their id so the web preview can map clicks back to stages. */
+/** Stage nodes carry their id, and the pipeline's post node a marker, so previews can map clicks back to the source. */
 function node(n: LaidOutNode): string {
   const s = shape(n);
-  if (!n.stageId) return s;
+  const marker = n.stageId ? `data-stage-id="${x(n.stageId)}"` : n.kind === 'post' ? 'data-post="true"' : '';
+  if (!marker) return s;
   const tip = n.subtitle ? `${n.label} (${n.subtitle})` : n.label;
-  return `<g data-stage-id="${x(n.stageId)}"><title>${x(tip)}</title>${s}</g>`;
+  return `<g ${marker}><title>${x(tip)}</title>${s}</g>`;
 }
 
 export function toSvg(layout: PipelineLayout): string {

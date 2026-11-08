@@ -7,9 +7,10 @@ interface Props {
   wrap: boolean;
   selectedStageId?: string;
   onSelect: (stageId: string | undefined) => void;
+  onPostClick: () => void;
 }
 
-export function Canvas({ pipeline, wrap, selectedStageId, onSelect }: Props) {
+export function Canvas({ pipeline, wrap, selectedStageId, onSelect, onPostClick }: Props) {
   const { container, setContainer, layout } = useWrappedLayout(pipeline, wrap);
   const svg = useMemo(() => (layout ? toSvg(layout) : ''), [layout]);
 
@@ -25,7 +26,11 @@ export function Canvas({ pipeline, wrap, selectedStageId, onSelect }: Props) {
       className="svg-preview"
       // toSvg escapes all text taken from the Jenkinsfile.
       dangerouslySetInnerHTML={{ __html: svg }}
-      onClick={(e) => onSelect((e.target as Element).closest('[data-stage-id]')?.getAttribute('data-stage-id') ?? undefined)}
+      onClick={(e) => {
+        const target = e.target as Element;
+        onSelect(target.closest('[data-stage-id]')?.getAttribute('data-stage-id') ?? undefined);
+        if (target.closest('[data-post]')) onPostClick();
+      }}
     />
   );
 }
