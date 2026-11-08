@@ -1,0 +1,232 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`graph + layout + exports > handwritten/01-basic.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["Checkout"]
+  n1["Build"]
+  n0 --> n1
+  n2["Test"]
+  n1 --> n2
+  n3["Package"]
+  n2 --> n3
+  start --> n0
+  finish((End))
+  n3 --> finish
+"
+`;
+
+exports[`graph + layout + exports > handwritten/02-kitchen-sink.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["Build"]
+  subgraph n1["Test (parallel)"]
+    direction TB
+    n2["Unit"]
+    subgraph n3["E2E"]
+      direction LR
+      n4["Setup"]
+      n5["Run"]
+      n4 --> n5
+    end
+  end
+  n0 --> n1
+  subgraph n6["Cross-platform (matrix, 3 cells)"]
+    direction TB
+    n7["linux · chrome: Smoke"]
+    n8["linux · firefox: Smoke"]
+    n9["windows · chrome: Smoke"]
+  end
+  n1 --> n6
+  n10["Deploy ⟨when⟩"]
+  n6 --> n10
+  start --> n0
+  post[/"post: failure, always"/]
+  n10 -.-> post
+  finish((End))
+  post --> finish
+  classDef when stroke-dasharray: 5 4
+  class n10 when
+"
+`;
+
+exports[`graph + layout + exports > handwritten/03-parallel-failfast.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["Lint"]
+  subgraph n1["Tests (parallel)"]
+    direction TB
+    n2["Linux"]
+    n3["Windows"]
+    n4["macOS"]
+  end
+  n0 --> n1
+  n5["Release ⟨when⟩"]
+  n1 --> n5
+  start --> n0
+  finish((End))
+  n5 --> finish
+  classDef when stroke-dasharray: 5 4
+  class n5 when
+"
+`;
+
+exports[`graph + layout + exports > handwritten/04-deep-nesting.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["Prepare"]
+  subgraph n1["Verify (parallel)"]
+    direction TB
+    subgraph n2["Backend"]
+      direction LR
+      n3["Compile"]
+      subgraph n4["Integration"]
+        direction LR
+        n5["Start DB"]
+        n6["IT tests"]
+        n5 --> n6
+      end
+      n3 --> n4
+    end
+    subgraph n7["Frontend"]
+      direction LR
+      n8["Install"]
+      n9["Build UI"]
+      n8 --> n9
+    end
+    n10["Docs"]
+  end
+  n0 --> n1
+  n11["Publish"]
+  n1 --> n11
+  start --> n0
+  finish((End))
+  n11 --> finish
+"
+`;
+
+exports[`graph + layout + exports > handwritten/05-when-conditions.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["PR checks ⟨when⟩"]
+  n1["Docs only ⟨when⟩"]
+  n0 --> n1
+  n2["Nightly ⟨when⟩"]
+  n1 --> n2
+  n3["Deploy staging ⟨when⟩"]
+  n2 --> n3
+  n4["Deploy prod ⟨when⟩"]
+  n3 --> n4
+  start --> n0
+  post[/"post: success, unstable, fixed, regression, aborted, cleanup"/]
+  n4 -.-> post
+  finish((End))
+  post --> finish
+  classDef when stroke-dasharray: 5 4
+  class n0,n1,n2,n3,n4 when
+"
+`;
+
+exports[`graph + layout + exports > handwritten/06-groovy-traps.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["Build \${env.BRANCH_NAME}"]
+  n1["Shared lib step"]
+  n0 --> n1
+  start --> n0
+  finish((End))
+  n1 --> finish
+"
+`;
+
+exports[`graph + layout + exports > handwritten/08-broken.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["Build"]
+  n1["Test"]
+  n0 --> n1
+  n2["Deploy"]
+  n1 --> n2
+  start --> n0
+  finish((End))
+  n2 --> finish
+"
+`;
+
+exports[`graph + layout + exports > handwritten/09-big-matrix.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  subgraph n0["Matrix (matrix, 15 cells)"]
+    direction TB
+    n1["each of 15 cells: Build → Test"]
+  end
+  start --> n0
+  finish((End))
+  n0 --> finish
+"
+`;
+
+exports[`graph + layout + exports > public/apache_camel.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  subgraph n0["BuildAndTest (matrix, 4 cells)"]
+    direction TB
+    n1["jdk_21_latest · ppc64le: Clean workspace → Build and test → Static code analysis"]
+    n2["jdk_21_latest · s390x: Clean workspace → Build and test → Static code analysis"]
+    n3["jdk_21_latest · ubuntu-avx: Clean workspace → Build and test → Static code analysis"]
+    n4["jdk_25_latest · ubuntu-avx: Clean workspace → Build and test → Static code analysis"]
+  end
+  start --> n0
+  finish((End))
+  n0 --> finish
+"
+`;
+
+exports[`graph + layout + exports > public/apache_maven.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["Build / Test - JDK17"]
+  start --> n0
+  finish((End))
+  n0 --> finish
+"
+`;
+
+exports[`graph + layout + exports > public/apache_zookeeper.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  subgraph n0["Prepare (matrix, 2 cells)"]
+    direction TB
+    n1["jdk_17_latest: BuildAndTest"]
+    n2["jdk_25_latest: BuildAndTest"]
+  end
+  start --> n0
+  finish((End))
+  n0 --> finish
+"
+`;
+
+exports[`graph + layout + exports > public/pmd_matrixPipeline.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  subgraph n0["foo (matrix, 3 cells)"]
+    direction TB
+    n1["linux: first → second"]
+    n2["windows: first → second"]
+    n3["mac: first → second"]
+  end
+  start --> n0
+  finish((End))
+  n0 --> finish
+"
+`;
+
+exports[`graph + layout + exports > public/pmd_simplePipeline.Jenkinsfile 1`] = `
+"flowchart LR
+  start((Start))
+  n0["foo"]
+  start --> n0
+  finish((End))
+  n0 --> finish
+"
+`;

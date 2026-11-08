@@ -1,0 +1,333 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`fixtures > handwritten/01-basic.Jenkinsfile 1`] = `
+{
+  "agent": "any",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [],
+  "stages": [
+    "Checkout [steps]",
+    "  - checkout scm",
+    "Build [steps]",
+    "  - sh 'make build'",
+    "Test [steps]",
+    "  - sh 'make test'",
+    "Package [steps]",
+    "  - archiveArtifacts artifacts: 'dist/**', fingerprint: true",
+  ],
+}
+`;
+
+exports[`fixtures > handwritten/02-kitchen-sink.Jenkinsfile 1`] = `
+{
+  "agent": "label linux",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": [
+    "failure",
+    "always",
+  ],
+  "preamble": [],
+  "stages": [
+    "Build [steps]",
+    "  - sh 'make build'",
+    "Test [parallel]",
+    "  | Unit [steps]",
+    "  |   - sh 'make unit'",
+    "  | E2E [stages; agent=docker node:20]",
+    "  |   Setup [steps]",
+    "  |     - sh 'npm ci'",
+    "  |   Run [steps]",
+    "  |     - sh 'npm run e2e'",
+    "Cross-platform [matrix]",
+    "  axes: OS=linux,windows BROWSER=chrome,firefox; cells=3",
+    "  * Smoke [steps]",
+    "  *   - echo "\${OS}/\${BROWSER}"",
+    "Deploy [steps; when=branch 'main' and expression { params.DEPLOY }; input=Ship it?]",
+    "  - sh './deploy.sh'",
+  ],
+}
+`;
+
+exports[`fixtures > handwritten/03-parallel-failfast.Jenkinsfile 1`] = `
+{
+  "agent": "none",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [],
+  "stages": [
+    "Lint [steps; agent=docker golangci/golangci-lint:v1.59]",
+    "  - sh 'golangci-lint run'",
+    "Tests [parallel; failFast]",
+    "  | Linux [steps; agent=label linux; post=always]",
+    "  |   - sh 'go test ./...'",
+    "  | Windows [steps; agent=label windows]",
+    "  |   - bat 'go test ./...'",
+    "  | macOS [steps; agent=label mac]",
+    "  |   - sh 'go test ./...'",
+    "Release [steps; agent=any; when=buildingTag()]",
+    "  - sh 'goreleaser release'",
+  ],
+}
+`;
+
+exports[`fixtures > handwritten/04-deep-nesting.Jenkinsfile 1`] = `
+{
+  "agent": "any",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [],
+  "stages": [
+    "Prepare [steps]",
+    "  - echo 'prep'",
+    "Verify [parallel]",
+    "  | Backend [stages]",
+    "  |   Compile [steps]",
+    "  |     - sh './gradlew compileJava'",
+    "  |   Integration [stages; post=cleanup]",
+    "  |     Start DB [steps]",
+    "  |       - sh 'docker compose up -d db'",
+    "  |     IT tests [steps]",
+    "  |       - sh './gradlew integrationTest'",
+    "  | Frontend [stages]",
+    "  |   Install [steps]",
+    "  |     - sh 'npm ci'",
+    "  |   Build UI [steps]",
+    "  |     - sh 'npm run build'",
+    "  | Docs [steps]",
+    "  |   - sh 'mkdocs build'",
+    "Publish [steps]",
+    "  - echo 'publish'",
+  ],
+}
+`;
+
+exports[`fixtures > handwritten/05-when-conditions.Jenkinsfile 1`] = `
+{
+  "agent": "any",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": [
+    "success",
+    "unstable",
+    "fixed",
+    "regression",
+    "aborted",
+    "cleanup",
+  ],
+  "preamble": [],
+  "stages": [
+    "PR checks [steps; when=changeRequest target: 'main']",
+    "  - sh 'make pr-check'",
+    "Docs only [steps; when=changeset '**/*.md']",
+    "  - echo 'docs changed'",
+    "Nightly [steps; when=triggeredBy 'TimerTrigger']",
+    "  - sh 'make nightly'",
+    "Deploy staging [steps; when=(branch 'main' or branch 'release/*') and environment name: 'ENV', value: 'staging']",
+    "  - sh "deploy --env staging --version \${params.VERSION}"",
+    "Deploy prod [steps; when=tag pattern: 'v\\\\d+\\\\.\\\\d+\\\\.\\\\d+', comparator: 'REGEXP' and not equals expected: 'dev', actual: params.ENV; input=Deploy to production?]",
+    "  - sh 'deploy --env prod'",
+  ],
+}
+`;
+
+exports[`fixtures > handwritten/06-groovy-traps.Jenkinsfile 1`] = `
+{
+  "agent": "kubernetes pod",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [
+    "@Library",
+    "def",
+    "def",
+  ],
+  "stages": [
+    "Build \${env.BRANCH_NAME} [steps; dynamicName]",
+    "  - container('maven') { … }",
+    "  - script { … }",
+    "Shared lib step [steps]",
+    "  - deployToK8s(namespace: 'apps', chart: 'web')",
+    "  - notify 'done'",
+  ],
+}
+`;
+
+exports[`fixtures > handwritten/07-scripted.Jenkinsfile 1`] = `
+{
+  "agent": undefined,
+  "diagnostics": [
+    "error L2: This looks like a scripted pipeline (node { ... }). Only declarative pipelines (pipeline { ... }) can be visualized.",
+  ],
+  "kind": "scripted",
+  "post": undefined,
+  "preamble": [
+    "node",
+  ],
+  "stages": [],
+}
+`;
+
+exports[`fixtures > handwritten/08-broken.Jenkinsfile 1`] = `
+{
+  "agent": "any",
+  "diagnostics": [
+    "error L7: Missing '}' for this block",
+  ],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [],
+  "stages": [
+    "Build [steps]",
+    "  - sh 'make'",
+    "Test [steps]",
+    "  - sh 'make test'",
+    "Deploy [steps]",
+    "  - sh './deploy.sh'",
+  ],
+}
+`;
+
+exports[`fixtures > handwritten/09-big-matrix.Jenkinsfile 1`] = `
+{
+  "agent": "none",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [],
+  "stages": [
+    "Matrix [matrix]",
+    "  axes: PLATFORM=linux,windows,mac JDK=11,17,21 DB=postgres,mysql; cells=15",
+    "  * Build [steps]",
+    "  *   - sh './build.sh'",
+    "  * Test [steps]",
+    "  *   - sh "./test.sh \${DB}"",
+  ],
+}
+`;
+
+exports[`fixtures > public/apache_camel.Jenkinsfile 1`] = `
+{
+  "agent": "none",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [
+    "def",
+    "def",
+    "def",
+    "def",
+  ],
+  "stages": [
+    "BuildAndTest [matrix]",
+    "  axes: JDK_NAME=jdk_21_latest,jdk_25_latest PLATFORM=ppc64le,s390x,ubuntu-avx; cells=4",
+    "  * Clean workspace [steps]",
+    "  *   - cleanWs()",
+    "  *   - sh 'if [ -d /home/jenkins/.m2/repository/org/apache/camel ]; then rm -rf /home/jenkins/.m…",
+    "  *   - script { … }",
+    "  * Build and test [steps; post=always]",
+    "  *   - echo "Do Build and test for \${PLATFORM}-\${JDK_NAME}"",
+    "  *   - sh 'java -version'",
+    "  *   - timeout(unit: 'MINUTES', time: 450) { … }",
+    "  * Static code analysis [steps]",
+    "  *   - script { … }",
+  ],
+}
+`;
+
+exports[`fixtures > public/apache_maven.Jenkinsfile 1`] = `
+{
+  "agent": "none",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [
+    "boolean",
+    "def",
+  ],
+  "stages": [
+    "Build / Test - JDK17 [steps; agent=node ubuntu]",
+    "  - timeout(time: 210, unit: 'MINUTES') { … }",
+  ],
+}
+`;
+
+exports[`fixtures > public/apache_zookeeper.Jenkinsfile 1`] = `
+{
+  "agent": "label Hadoop",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [],
+  "stages": [
+    "Prepare [matrix]",
+    "  axes: JAVA_VERSION=jdk_17_latest,jdk_25_latest; cells=2",
+    "  * BuildAndTest [steps; post=always/cleanup]",
+    "  *   - sh "git clean -fxd"",
+    "  *   - sh "mvn verify spotbugs:check checkstyle:check -Pfull-build -Dsurefire-forkcount=4"",
+  ],
+}
+`;
+
+exports[`fixtures > public/jenkinsci_jenkins.Jenkinsfile 1`] = `
+{
+  "agent": undefined,
+  "diagnostics": [
+    "error L8: This looks like a scripted pipeline (node { ... }). Only declarative pipelines (pipeline { ... }) can be visualized.",
+  ],
+  "kind": "scripted",
+  "post": undefined,
+  "preamble": [
+    "def",
+    "def",
+    "properties",
+    "def",
+    "stage",
+    "def",
+    "axes",
+    "def",
+    "athAxes",
+    "builds",
+    "parallel",
+    "infra",
+  ],
+  "stages": [],
+}
+`;
+
+exports[`fixtures > public/pmd_matrixPipeline.Jenkinsfile 1`] = `
+{
+  "agent": "none",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [],
+  "stages": [
+    "foo [matrix]",
+    "  axes: OS_VALUE=linux,windows,mac; cells=3",
+    "  * first [steps]",
+    "  *   - echo "First branch"",
+    "  *   - echo "OS=\${OS_VALUE}"",
+    "  * second [steps]",
+    "  *   - echo "Second branch"",
+  ],
+}
+`;
+
+exports[`fixtures > public/pmd_simplePipeline.Jenkinsfile 1`] = `
+{
+  "agent": "none",
+  "diagnostics": [],
+  "kind": "declarative",
+  "post": undefined,
+  "preamble": [],
+  "stages": [
+    "foo [steps]",
+    "  - echo "hello"",
+  ],
+}
+`;

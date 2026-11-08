@@ -1,0 +1,17 @@
+{
+  "name": "jenkins-visualizer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @jpv/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm --filter @jpv/core test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
