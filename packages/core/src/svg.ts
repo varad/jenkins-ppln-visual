@@ -57,9 +57,7 @@ function shape(n: LaidOutNode): string {
     }
     default: {
       const r = W / 2;
-      const circle = n.conditional
-        ? `<circle cx="${cx}" cy="${cy}" r="${r - RAIL_W / 2}" fill="transparent" stroke="${C.rail}" stroke-width="${RAIL_W}"/>`
-        : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${n.kind === 'post' ? C.post : C.stage}"/>`;
+      const circle = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${n.kind === 'post' ? C.post : C.stage}"/>`;
       // Hidden unless a preview's hover rule shows it, so downloaded SVGs never display it.
       const ring = `<circle class="jpv-ring" cx="${cx}" cy="${cy}" r="${r + RING_W / 2}" fill="none" stroke="${C.ring}" stroke-width="${RING_W}" visibility="hidden"/>`;
       const top = Y + H + LABEL_GAP - 3;
