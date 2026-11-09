@@ -1,5 +1,7 @@
 # Jenkinsfile Visualizer
 
+**[▶ Try it in your browser](https://varad.github.io/jenkins-ppln-visual/)**, no install needed.
+
 Reads a Jenkins **declarative** pipeline (`pipeline { ... }`) and draws its stages:
 sequential, `parallel`, nested `stages`, `matrix` (expanded into cells), `when`,
 `input`, `agent` and `post`. Everything runs in the browser; files never leave
