@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { applyEdit, buildGraph, canMove, canRename, dropSlots, indexStages, layoutGraph, moveStage, parseJenkinsfile, renameError, renameStage, slotDistance, type DropTarget } from '../src/index.js';
+import { LABEL_GAP, LINE_H, applyEdit, buildGraph, canMove, canRename, dropSlots, indexStages, layoutGraph, moveStage, parseJenkinsfile, renameError, renameStage, slotDistance, type DropTarget } from '../src/index.js';
 
 const FIXTURES = join(__dirname, '../../../fixtures');
 const read = (f: string) => readFileSync(join(FIXTURES, f), 'utf8');
@@ -60,7 +60,54 @@ describe('moveStage', () => {
     expect(canMove(p, 'Test', { containerId: null, index: 1 })).toBe(false); // no-op
     expect(canMove(p, 'Cross-platform/Smoke', { containerId: null, index: 0 })).toBe(false); // matrix stage
     const single = move(kitchen, 'Test/E2E/Setup', { containerId: null, index: 0 })!.out;
-    expect(canMove(parseJenkinsfile(single).pipeline!, 'Test/E2E/Run', { containerId: null, index: 0 })).toBe(false); // would empty a list
+    const sp = parseJenkinsfile(single).pipeline!;
+    expect(canMove(sp, 'Test/E2E/Run', { containerId: 'Test/E2E', index: 0 })).toBe(false); // into the stage it empties
+    const only = "pipeline {\n    agent any\n    stages {\n        stage('X') {\n            stages {\n                stage('Y') { steps { echo 'y' } }\n            }\n        }\n    }\n}\n";
+    expect(canMove(parseJenkinsfile(only).pipeline!, 'X/Y', { containerId: null, index: 0 })).toBe(false); // would take the last stage
+  });
+
+  it('removes the stage that a move leaves empty', () => {
+    const single = move(kitchen, 'Test/E2E/Setup', { containerId: null, index: 0 })!.out;
+    const r = move(single, 'Test/E2E/Run', { containerId: null, index: 1 })!;
+    // E2E goes, and so does the Test parallel it leaves with only Unit.
+    expect(names(r.out, null)).toEqual(['Setup', 'Run', 'Build', 'Unit', 'Cross-platform', 'Deploy']);
+    expect(r.out).not.toContain("stage('E2E')");
+    expect(r.out).not.toContain('node:20'); // its settings go with it
+    expect(r.out).toContain("        stage('Build') { steps { sh 'make build' } }\n        stage('Unit') { steps { sh 'make unit' } }\n        stage('Cross-platform') {");
+    expect(r.result.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+    expect(r.out.slice(r.stageOffset).startsWith("stage('Run')")).toBe(true);
+  });
+
+  it('collapses a parallel left with one branch into that branch', () => {
+    const r = move(kitchen, 'Test/Unit', { containerId: null, index: 0 })!;
+    expect(names(r.out, null)).toEqual(['Unit', 'Build', 'E2E', 'Cross-platform', 'Deploy']);
+    expect(names(r.out, 'E2E')).toEqual(['Setup', 'Run']);
+    expect(r.out).not.toContain("stage('Test')");
+    expect(r.out).toContain("        stage('E2E') {\n            agent { docker { image 'node:20' } }\n            stages {\n                stage('Setup')");
+    expect(r.result.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+    expect(r.out.slice(r.stageOffset).startsWith("stage('Unit')")).toBe(true);
+  });
+
+  it('undoes a fork by dragging the branch back out', () => {
+    const src = "pipeline {\n    agent any\n    stages {\n        stage('a') { steps { echo 'a' } }\n        stage('b') { steps { echo 'b' } }\n        stage('c') { steps { echo 'c' } }\n    }\n}\n";
+    const forked = move(src, 'b', { fork: 'a' })!.out;
+    expect(move(forked, 'a | b/b', { containerId: null, index: 1 })!.out).toBe(src);
+  });
+
+  it('keeps a parallel that has settings of its own', () => {
+    const ff = read('handwritten/03-parallel-failfast.Jenkinsfile');
+    const p = parseJenkinsfile(ff).pipeline!;
+    const tests = p.stages.find((x) => x.name === 'Tests')!;
+    if (tests.body.kind !== 'parallel') throw new Error('fixture changed');
+    let out = ff;
+    for (const b of tests.body.branches.slice(1)) out = move(out, b.id, { containerId: null, index: 0 })!.out;
+    expect(names(out, 'Tests')).toHaveLength(1); // failFast keeps it
+  });
+
+  it('removes every stage that the move leaves empty, up to one with other stages', () => {
+    const src = "pipeline {\n    agent any\n    stages {\n        stage('A') { steps { echo 'a' } }\n        stage('X') {\n            stages {\n                stage('Y') {\n                    stages {\n                        stage('Z') { steps { echo 'z' } }\n                    }\n                }\n            }\n        }\n    }\n}\n";
+    const r = move(src, 'X/Y/Z', { containerId: null, index: 0 })!;
+    expect(r.out).toBe("pipeline {\n    agent any\n    stages {\n        stage('Z') { steps { echo 'z' } }\n        stage('A') { steps { echo 'a' } }\n    }\n}\n");
   });
 });
 
@@ -172,6 +219,88 @@ describe('wrapping a parallel branch', () => {
   });
 });
 
+describe('running a stage in parallel', () => {
+  const src = `pipeline {
+    agent any
+    stages {
+        stage('a') { steps { echo 'a' } }
+        // b runs the slow suite
+        stage('b') { steps { echo 'b' } }
+        stage('c') { steps { echo 'c' } }
+    }
+}
+`;
+  const errors = (r: ReturnType<typeof parseJenkinsfile>) => r.diagnostics.filter((d) => d.severity === 'error');
+
+  it("puts b under a in a new 'a | b' parallel", () => {
+    const r = move(src, 'b', { fork: 'a' })!;
+    expect(r.out).toBe(`pipeline {
+    agent any
+    stages {
+        stage('a | b') {
+            parallel {
+                stage('a') { steps { echo 'a' } }
+                // b runs the slow suite
+                stage('b') { steps { echo 'b' } }
+            }
+        }
+        stage('c') { steps { echo 'c' } }
+    }
+}
+`);
+    expect(errors(r.result)).toEqual([]);
+    expect(names(r.out, null)).toEqual(['a | b', 'c']);
+    expect(names(r.out, 'a | b')).toEqual(['a', 'b']);
+    expect(r.out.slice(r.stageOffset).startsWith("stage('b')")).toBe(true);
+  });
+
+  it('forks a stage from further along the sequence', () => {
+    const r = move(src, 'c', { fork: 'a' })!;
+    expect(names(r.out, null)).toEqual(['a | c', 'b']);
+    expect(names(r.out, 'a | c')).toEqual(['a', 'c']);
+    expect(errors(r.result)).toEqual([]);
+  });
+
+  it('forks inside a sequential stage group', () => {
+    const kitchen = read('handwritten/02-kitchen-sink.Jenkinsfile');
+    const r = move(kitchen, 'Build', { fork: 'Deploy' })!;
+    expect(names(r.out, null)).toEqual(['Test', 'Cross-platform', 'Deploy | Build']);
+    expect(errors(r.result)).toEqual([]);
+  });
+
+  it('keeps stage names unique', () => {
+    const taken = src.replace("stage('c')", "stage('a | b')");
+    const r = move(taken, 'b', { fork: 'a' })!;
+    expect(names(r.out, null)).toEqual(['a | b 2', 'a | b']);
+    expect(errors(r.result)).toEqual([]);
+  });
+
+  it('takes a drop just under the stage, and leaves the rail to the sequence', async () => {
+    const p = parseJenkinsfile(src).pipeline!;
+    const layout = await layoutGraph(buildGraph(p));
+    const slots = dropSlots(layout, p);
+    const a = layout.nodes.find((n) => n.id === 'a')!;
+    const rail = a.absY + a.height / 2;
+    const below = a.absY + a.height + LABEL_GAP + a.lines.length * LINE_H + 10;
+    const nearest = (x: number, y: number, id = 'c') =>
+      slots.filter((s) => canMove(p, id, s.target)).sort((s, t) => slotDistance(s, x, y) - slotDistance(t, x, y))[0].target;
+    expect(nearest(a.absX + a.width / 2, below)).toEqual({ fork: 'a' });
+    expect(nearest(a.absX + a.width + 4, rail)).toEqual({ containerId: null, index: 1 });
+  });
+
+  it('rejects forks that Jenkins would refuse', () => {
+    const kitchen = parseJenkinsfile(read('handwritten/02-kitchen-sink.Jenkinsfile')).pipeline!;
+    const p = parseJenkinsfile(src).pipeline!;
+    expect(canMove(p, 'a', { fork: 'a' })).toBe(false); // itself
+    expect(canMove(kitchen, 'Build', { fork: 'Test/Unit' })).toBe(false); // a parallel branch: parallel inside parallel
+    expect(canMove(kitchen, 'Build', { fork: 'Test/E2E/Setup' })).toBe(false); // nested under a parallel
+    expect(canMove(kitchen, 'Build', { fork: 'Test' })).toBe(false); // already forks
+    expect(canMove(kitchen, 'Test', { fork: 'Build' })).toBe(false); // the moved stage forks
+    expect(canMove(kitchen, 'Cross-platform/Smoke', { fork: 'Build' })).toBe(false); // a matrix cell
+    expect(canMove(kitchen, 'Build', { fork: 'Cross-platform/Smoke' })).toBe(false);
+  });
+});
+
 describe('every valid drop slot gives a valid pipeline', () => {
   for (const dir of ['handwritten', 'public']) {
     const files = readdirSync(join(FIXTURES, dir), { withFileTypes: true }).filter((e) => e.isFile() && !e.name.startsWith('.'));
@@ -191,8 +320,8 @@ describe('every valid drop slot gives a valid pipeline', () => {
             const out = applyEdit(src, m.edit);
             const after = parseJenkinsfile(out);
             expect(errors(after), `${id} → ${JSON.stringify(target)}`).toBeLessThanOrEqual(errors(r));
-            // A wrap adds a stage and an unwrap removes one.
-            expect(Math.abs(indexStages(after.pipeline!.stages).size - stages.size)).toBeLessThanOrEqual(1);
+            // A wrap adds a stage; an unwrap, or a stage left empty, removes some.
+            expect(indexStages(after.pipeline!.stages).size - stages.size).toBeLessThanOrEqual(1);
             const name = stages.get(id)!.name;
             expect(out.slice(m.stageOffset)).toMatch(new RegExp(`^stage\\s*\\(\\s*['"]${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
           }

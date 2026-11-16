@@ -26,9 +26,10 @@ export function innermostStage(stages: Map<string, Stage>, offset: number) {
 
 /**
  * Where to drop: before the `index`th stage of a list (`containerId` null is the top-level `stages`),
- * or next to a plain parallel branch, which then becomes a wrapper stage running both in sequence.
+ * next to a plain parallel branch, which then becomes a wrapper stage running both in sequence,
+ * or under a stage that runs in sequence, which then becomes a wrapper stage running both in parallel.
  */
-export type DropTarget = { containerId: string | null; index: number } | { wrap: string; after: boolean };
+export type DropTarget = { containerId: string | null; index: number } | { wrap: string; after: boolean } | { fork: string };
 
 export interface TextEdit {
   start: number;
@@ -90,6 +91,22 @@ function isAncestor(ix: PipelineIndex, ancestorId: string, of: string): boolean 
   return false;
 }
 
+/**
+ * The stage that leaves the source when `s` moves: `s` itself, or, when `s` is the only stage left in a
+ * `stages`/`parallel` block, the stage holding that block (and so on up), since Jenkins rejects an empty block.
+ * Undefined when that would take the pipeline's last stage.
+ */
+function leavingStage(ix: PipelineIndex, s: Stage): Stage | undefined {
+  let r = s;
+  for (;;) {
+    const parentId = ix.parent.get(r.id) ?? null;
+    const list = ix.lists.get(parentId);
+    if (!list || list.stages.length > 1) return r;
+    if (parentId === null) return undefined;
+    r = ix.stages.get(parentId)!;
+  }
+}
+
 export function canMove(p: Pipeline, stageId: string, t: DropTarget): boolean {
   const ix = indexPipeline(p);
   const s = ix.stages.get(stageId);
@@ -97,13 +114,25 @@ export function canMove(p: Pipeline, stageId: string, t: DropTarget): boolean {
   const fromId = ix.parent.get(stageId) ?? null;
   const from = ix.lists.get(fromId);
   if (!from?.block) return false;
+  const leaving = leavingStage(ix, s);
+  if (!leaving) return false;
+  // Nothing can land in a stage that the move removes.
+  const anchor = 'wrap' in t ? t.wrap : 'fork' in t ? t.fork : t.containerId;
+  if (leaving !== s && anchor !== null && (anchor === leaving.id || isAncestor(ix, leaving.id, anchor))) return false;
   if ('wrap' in t) {
     const a = ix.stages.get(t.wrap);
     if (!a || a === s || ix.inMatrix.has(a.id) || !isPlain(a)) return false;
     const aParent = ix.parent.get(a.id) ?? null;
     const list = ix.lists.get(aParent);
     if (!list?.parallel || !list.block || aParent === null || isAncestor(ix, stageId, aParent)) return false;
-    return !forks(s) && from.stages.length > 1;
+    return !forks(s);
+  }
+  if ('fork' in t) {
+    const a = ix.stages.get(t.fork);
+    if (!a || a === s || ix.inMatrix.has(a.id) || forks(a) || forks(s)) return false;
+    const aParent = ix.parent.get(a.id) ?? null;
+    const list = ix.lists.get(aParent);
+    return !!list?.block && !list.parallel && !list.nested && (aParent === null || !isAncestor(ix, stageId, aParent));
   }
   const to = ix.lists.get(t.containerId);
   if (!to?.block || t.index < 0 || t.index > to.stages.length) return false;
@@ -113,8 +142,7 @@ export function canMove(p: Pipeline, stageId: string, t: DropTarget): boolean {
     const at = from.stages.indexOf(s);
     return t.index !== at && t.index !== at + 1;
   }
-  // Emptying a list would leave a stages/parallel block that Jenkins rejects.
-  return from.stages.length > 1;
+  return true;
 }
 
 const lineStart = (src: string, o: number) => src.lastIndexOf('\n', o - 1) + 1;
@@ -192,20 +220,54 @@ function movedText(src: string, s: Stage, lines: { start: number; end: number },
   };
 }
 
-/** Replaces a bare wrapper branch that is left with one stage by that stage. */
+/**
+ * Replaces a bare stage that `s` leaves with one stage inside by that stage: a parallel branch's
+ * `stages` wrapper, or a one-branch `parallel`. A stage with settings of its own stays.
+ */
 function unwrapPart(src: string, ix: PipelineIndex, s: Stage): Part | undefined {
   const wId = ix.parent.get(s.id);
   const w = wId ? ix.stages.get(wId) : undefined;
-  if (!w || w.body.kind !== 'stages' || w.body.stages.length !== 2) return;
-  if (!ix.lists.get(ix.parent.get(w.id) ?? null)?.parallel) return;
+  if (!w) return;
+  const inner = w.body.kind === 'stages' ? w.body.stages : w.body.kind === 'parallel' ? w.body.branches : [];
+  if (inner.length !== 2) return;
+  if (w.body.kind === 'stages' && !ix.lists.get(ix.parent.get(w.id) ?? null)?.parallel) return;
   if (w.agent || w.when || w.input || w.environment || w.options || w.tools || w.post || w.failFast !== undefined) return;
-  const rest = w.body.stages.find((x) => x !== s)!;
+  const rest = inner.find((x) => x !== s)!;
   const wl = stageLines(src, w);
   const rl = stageLines(src, rest);
   if (!wl || !rl) return;
   // Comments above the wrapper stay where they are.
   const start = lineStart(src, w.loc.start);
   return { start, end: wl.end, text: movedText(src, rest, rl, indentAt(src, w.loc.start)).text };
+}
+
+/**
+ * Replaces stage `a` with a new wrapper stage named after `base` (made unique) that holds `a` and the moved stage `s`,
+ * in a `stages` (sequence) or `parallel` block; `after` puts `s` second.
+ */
+function wrapperPart(
+  src: string,
+  ix: PipelineIndex,
+  a: Stage,
+  s: Stage,
+  cut: { start: number; end: number },
+  unit: string,
+  keyword: 'stages' | 'parallel',
+  base: string,
+  after: boolean,
+): Part | null {
+  const al = stageLines(src, a);
+  if (!al) return null;
+  const outer = indentAt(src, a.loc.start);
+  const inner = outer + unit + unit;
+  const names = new Set([...ix.stages.values()].map((x) => x.name));
+  let name = base;
+  for (let n = 2; names.has(name); n++) name = `${base} ${n}`;
+  const head = `${outer}stage(${groovyQuote(name)}) {\n${outer}${unit}${keyword} {\n`;
+  const aText = movedText(src, a, al, inner).text;
+  const moved = movedText(src, s, cut, inner);
+  const body = after ? aText + moved.text : moved.text + aText;
+  return { start: al.start, end: al.end, text: `${head}${body}${outer}${unit}}\n${outer}}\n`, mark: head.length + (after ? aText.length : 0) + moved.mark };
 }
 
 export function moveStage(src: string, p: Pipeline, stageId: string, t: DropTarget): StageEdit | null {
@@ -218,22 +280,14 @@ export function moveStage(src: string, p: Pipeline, stageId: string, t: DropTarg
   if (!cut) return null;
   const unit = indentUnit(src, s, from);
 
-  let place: Part;
+  let place: Part | null;
   if ('wrap' in t) {
     const a = ix.stages.get(t.wrap)!;
-    const al = stageLines(src, a);
-    if (!al) return null;
-    const outer = indentAt(src, a.loc.start);
-    const inner = outer + unit + unit;
-    const names = new Set([...ix.stages.values()].map((x) => x.name));
     const base = t.after ? `${a.name} → ${s.name}` : `${s.name} → ${a.name}`;
-    let name = base;
-    for (let n = 2; names.has(name); n++) name = `${base} ${n}`;
-    const head = `${outer}stage(${groovyQuote(name)}) {\n${outer}${unit}stages {\n`;
-    const aText = movedText(src, a, al, inner).text;
-    const moved = movedText(src, s, cut, inner);
-    const body = t.after ? aText + moved.text : moved.text + aText;
-    place = { start: al.start, end: al.end, text: `${head}${body}${outer}${unit}}\n${outer}}\n`, mark: head.length + (t.after ? aText.length : 0) + moved.mark };
+    place = wrapperPart(src, ix, a, s, cut, unit, 'stages', base, t.after);
+  } else if ('fork' in t) {
+    const a = ix.stages.get(t.fork)!;
+    place = wrapperPart(src, ix, a, s, cut, unit, 'parallel', `${a.name} | ${s.name}`, true);
   } else {
     const to = ix.lists.get(t.containerId)!;
     let insertAt: number;
@@ -252,10 +306,15 @@ export function moveStage(src: string, p: Pipeline, stageId: string, t: DropTarg
     place = { start: insertAt, end: insertAt, text: moved.text, mark: moved.mark };
   }
 
-  const sameList = !('wrap' in t) && t.containerId === fromId;
-  const unwrap = sameList ? undefined : unwrapPart(src, ix, s);
+  if (!place) return null;
+  // A stage emptied by the move goes too, with the comments above it.
+  const leaving = leavingStage(ix, s)!;
+  const gone = leaving === s ? cut : stageLines(src, leaving);
+  if (!gone) return null;
+  const sameList = 'containerId' in t && t.containerId === fromId;
+  const unwrap = sameList ? undefined : unwrapPart(src, ix, leaving);
   const overlaps = (a: Part, b: Part) => a.start < b.end && b.start < a.end;
-  const removal = unwrap && !overlaps(unwrap, place) ? unwrap : { start: cut.start, end: cut.end, text: '' };
+  const removal = unwrap && !overlaps(unwrap, place) ? unwrap : { start: gone.start, end: gone.end, text: '' };
   return combine(src, [removal, place]);
 }
 
@@ -392,6 +451,23 @@ export function dropSlots(layout: PipelineLayout, p: Pipeline): DropSlot[] {
     const right = n.absX + n.width;
     slots.push({ target: { wrap: n.stageId, after: true }, x: Math.min(right + gap, (right + join.absX) / 2), y, length: 28, orient: 'v', zone: railZone(cx, join.absX, y) });
   }
+  // Under a stage that runs in sequence: run the dropped stage in parallel with it, in a new wrapper.
+  for (const n of layout.nodes) {
+    if (!n.stageId || n.id !== n.stageId || ix.inMatrix.has(n.stageId)) continue;
+    if (n.kind !== 'stage' && !(n.kind === 'group' && n.groupKind === 'stages' && !n.rowLabel)) continue;
+    const st = ix.stages.get(n.stageId);
+    const list = ix.lists.get(ix.parent.get(n.stageId) ?? null);
+    if (!st || forks(st) || !list?.block || list.parallel || list.nested) continue;
+    const box = n.kind === 'group' ? extent(n) : own(n);
+    slots.push({
+      target: { fork: n.stageId },
+      x: box.left,
+      y: box.bottom + 6,
+      length: box.right - box.left,
+      orient: 'h',
+      zone: { left: box.left, right: box.right, top: box.bottom - 4, bottom: box.bottom + FORK_ZONE },
+    });
+  }
   return slots;
 }
 
@@ -399,6 +475,8 @@ export function dropSlots(layout: PipelineLayout, p: Pipeline): DropSlot[] {
 /** A band along a rail, about as tall as a stage circle, so the gaps between parallel rows stay free for new-branch slots. */
 const railZone = (left: number, right: number, y: number): Rect => ({ left, right, top: y - RAIL_ZONE, bottom: y + RAIL_ZONE });
 const RAIL_ZONE = 12;
+/** How far under a stage's label a drop still runs it in parallel with that stage. */
+const FORK_ZONE = 28;
 
 export function slotDistance(s: DropSlot, px: number, py: number): number {
   const z = s.zone;
