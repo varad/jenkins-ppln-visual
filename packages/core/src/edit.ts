@@ -409,8 +409,8 @@ export function dropSlots(layout: PipelineLayout, p: Pipeline): DropSlot[] {
   const own = (n: LaidOutNode): Rect => {
     if (n.kind === 'group') return { left: n.absX, right: n.absX + n.width, top: n.absY, bottom: n.absY + n.height };
     const cx = n.absX + n.width / 2;
-    const half = Math.max(n.width / 2, ...[...n.lines, ...n.sublines].map((l) => (l.length * CHAR_W) / 2));
-    return { left: cx - half, right: cx + half, top: n.absY, bottom: n.absY + n.height + LABEL_GAP + (n.lines.length + n.sublines.length) * LINE_H };
+    const half = Math.max(n.width / 2, ...[...n.lines, ...n.taglines, ...n.sublines].map((l) => (l.length * CHAR_W) / 2));
+    return { left: cx - half, right: cx + half, top: n.absY, bottom: n.absY + n.height + LABEL_GAP + (n.lines.length + n.taglines.length + n.sublines.length) * LINE_H };
   };
   const extent = (n: LaidOutNode): Rect =>
     (kids.get(n.id) ?? [])

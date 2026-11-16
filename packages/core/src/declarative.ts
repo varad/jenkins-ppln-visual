@@ -168,6 +168,13 @@ class Interpreter {
   }
 
   agent(s: Statement): Agent {
+    const a = this.agentOf(s);
+    const labels = labelNames(a.labelExpr);
+    const { labelExpr: _, ...agent } = a;
+    return labels.length ? { ...agent, labels } : agent;
+  }
+
+  private agentOf(s: Statement): Agent & { labelExpr?: string } {
     const loc = this.loc(s);
     const raw = this.oneLine(this.text(s), 200);
     const args = stmtArgs(s);
@@ -175,7 +182,7 @@ class Interpreter {
       const first = args[0];
       if (first && first.kind === 'ident' && (first.text === 'any' || first.text === 'none')) return { kind: first.text, summary: first.text, raw, loc };
       const vals = stmtArgValues(s).map(tokenValue);
-      if (args.some((t) => t.text === 'label')) return { kind: 'label', summary: `label ${vals.join(' ')}`, raw, loc };
+      if (args.some((t) => t.text === 'label')) return { kind: 'label', summary: `label ${vals.join(' ')}`, labelExpr: vals.join(' '), raw, loc };
       return { kind: 'other', summary: this.oneLine(args.map((t) => t.text).join(' '), 40), raw, loc };
     }
     const inner = s.closure.statements[0];
@@ -190,19 +197,29 @@ class Interpreter {
       const v = sub && stmtArgValues(sub)[0];
       return v ? tokenValue(v) : undefined;
     };
+    /** `label` inside a block agent such as `docker { image 'x'; label 'y' }`. */
+    const subLabel = () => {
+      const sub = inner?.closure?.statements.find((x) => stmtName(x) === 'label');
+      const v = sub && stmtArgValues(sub)[0];
+      return v ? tokenValue(v) : undefined;
+    };
     switch (kind) {
-      case 'label':
-        return { kind: 'label', summary: `label ${stmtArgValues(inner).map(tokenValue).join(' ')}`, raw, loc };
-      case 'node':
-        return { kind: 'node', summary: `node ${innerValue(inner, 'label') ?? ''}`.trim(), raw, loc };
+      case 'label': {
+        const expr = stmtArgValues(inner).map(tokenValue).join(' ');
+        return { kind: 'label', summary: `label ${expr}`, labelExpr: expr, raw, loc };
+      }
+      case 'node': {
+        const expr = innerValue(inner, 'label');
+        return { kind: 'node', summary: `node ${expr ?? ''}`.trim(), labelExpr: expr, raw, loc };
+      }
       case 'docker':
-        return { kind: 'docker', summary: `docker ${innerValue(inner, 'image') ?? ''}`.trim(), raw, loc };
+        return { kind: 'docker', summary: `docker ${innerValue(inner, 'image') ?? ''}`.trim(), labelExpr: subLabel(), raw, loc };
       case 'dockerfile': {
         const file = innerValue(inner, 'filename');
-        return { kind: 'dockerfile', summary: file && file !== 'true' ? `dockerfile ${file}` : 'dockerfile', raw, loc };
+        return { kind: 'dockerfile', summary: file && file !== 'true' ? `dockerfile ${file}` : 'dockerfile', labelExpr: subLabel(), raw, loc };
       }
       case 'kubernetes':
-        return { kind: 'kubernetes', summary: 'kubernetes pod', raw, loc };
+        return { kind: 'kubernetes', summary: 'kubernetes pod', labelExpr: subLabel(), raw, loc };
       default:
         return { kind: 'other', summary: kind || 'agent', raw, loc };
     }
@@ -490,4 +507,11 @@ export function matrixCells(axes: Axis[], excludes: Axis[][]): Record<string, st
 
 export function parseJenkinsfile(src: string): ParseResult {
   return new Interpreter(src).run();
+}
+
+/** The label names in a Jenkins label expression such as `linux && (docker || podman) && !arm`. */
+export function labelNames(expr: string | undefined): string[] {
+  if (!expr) return [];
+  const names = expr.split(/<->|->|&&|\|\||[!()&|\s]+/).map((n) => n.trim()).filter(Boolean);
+  return [...new Set(names)];
 }

@@ -95,6 +95,16 @@ describe('specifics', () => {
     expect(m.kind === 'matrix' && m.matrix.cells.length).toBe(15);
   });
 
+  it('splits agent label expressions into label names', () => {
+    const r = parseJenkinsfile(`pipeline { agent none; stages {
+      stage('A') { agent { label 'linux && (docker || podman) && !arm' }; steps { echo 'a' } }
+      stage('B') { agent { node { label 'ubuntu'; customWorkspace '/w' } }; steps { echo 'b' } }
+      stage('C') { agent { docker { image 'node:20'; label 'big' } }; steps { echo 'c' } }
+      stage('D') { agent any; steps { echo 'd' } }
+    } }`);
+    expect(r.pipeline!.stages.map((s) => s.agent?.labels)).toEqual([['linux', 'docker', 'podman', 'arm'], ['ubuntu'], ['big'], undefined]);
+  });
+
   it('enforces one body per stage and no nested parallel', () => {
     const r = parseJenkinsfile(`pipeline { agent any; stages {
       stage('A') { steps { echo 'a' }; stages { stage('B') { steps { echo 'b' } } } }

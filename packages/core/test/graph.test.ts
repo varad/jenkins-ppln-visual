@@ -50,4 +50,16 @@ describe('graph + layout + exports', () => {
       });
     }
   }
+
+  it('shows agent labels as tags under the stage name', async () => {
+    const r = parseJenkinsfile(`pipeline { agent none; stages {
+      stage('Build') { agent { label 'linux && docker' }; steps { echo 'a' } }
+      stage('M') { matrix { axes { axis { name 'OS'; values 'linux', 'mac' } }; agent { label "\${OS}" }; stages { stage('T') { steps { echo 't' } } } } }
+    } }`);
+    const layout = await layoutGraph(buildGraph(r.pipeline!));
+    const tagsOf = (label: string) => layout.nodes.filter((n) => n.label === label).map((n) => n.taglines);
+    expect(tagsOf('Build')).toEqual([['#linux #docker']]);
+    expect(tagsOf('T')).toEqual([['#linux'], ['#mac']]);
+    expect(toSvg(layout)).toContain('data-tags="true" class="jpv-quiet" fill="#656d76">#linux #docker</text>');
+  });
 });

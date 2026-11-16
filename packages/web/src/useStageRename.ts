@@ -41,7 +41,7 @@ export function useStageRename({ container, layout, pipeline, source, onRename, 
     const open = (g: Element, id: string) => {
       close();
       const stage = stages.get(id)!;
-      const texts = [...g.querySelectorAll(':scope > text')] as SVGTextElement[];
+      const texts = [...g.querySelectorAll(':scope > text:not([data-tags])')] as SVGTextElement[];
       const boxes = (texts.length ? texts : [g as SVGGraphicsElement]).map((t) => t.getBBox());
       const left = Math.min(...boxes.map((b) => b.x));
       const right = Math.max(...boxes.map((b) => b.x + b.width));

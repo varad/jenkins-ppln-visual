@@ -16,6 +16,8 @@ const C = {
 };
 
 const RAIL_W = 3;
+/** Agent label tags; marked so previews can tell them from the stage name. */
+const TAGS = 'text-anchor="middle" font-size="11" data-tags="true"';
 const CORNER = 10;
 const RING_W = 3;
 
@@ -53,7 +55,10 @@ function shape(n: LaidOutNode): string {
     case 'group': {
       const tone = n.conditional ? 'when' : 'ink';
       if (n.rowLabel) return text(X, cy + 4, n.lines[0], 'font-size="13"', tone);
-      return n.lines.map((l, i) => text(cx, Y + (i + 1) * LINE_H - 4, l, 'text-anchor="middle" font-size="13" font-weight="600"', tone)).join('');
+      return (
+        n.lines.map((l, i) => text(cx, Y + (i + 1) * LINE_H - 4, l, 'text-anchor="middle" font-size="13" font-weight="600"', tone)).join('') +
+        n.taglines.map((l, i) => text(cx, Y + (n.lines.length + i + 1) * LINE_H - 4, l, TAGS, 'quiet')).join('')
+      );
     }
     default: {
       const r = W / 2;
@@ -65,7 +70,8 @@ function shape(n: LaidOutNode): string {
         circle +
         ring +
         n.lines.map((l, i) => text(cx, top + (i + 1) * LINE_H, l, middle)).join('') +
-        n.sublines.map((l, i) => text(cx, top + (n.lines.length + i + 1) * LINE_H, l, 'text-anchor="middle" font-size="11"', 'quiet')).join('')
+        n.taglines.map((l, i) => text(cx, top + (n.lines.length + i + 1) * LINE_H, l, TAGS, 'quiet')).join('') +
+        n.sublines.map((l, i) => text(cx, top + (n.lines.length + n.taglines.length + i + 1) * LINE_H, l, 'text-anchor="middle" font-size="11"', 'quiet')).join('')
       );
     }
   }

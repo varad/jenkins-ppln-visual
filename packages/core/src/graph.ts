@@ -23,6 +23,8 @@ export interface GNode {
   /** Model stage id, for selection and source navigation. */
   stageId?: string;
   conditional?: boolean;
+  /** Agent label names, shown under the name as `#linux #docker`. */
+  tags?: string[];
   badges: Badge[];
 }
 
@@ -48,6 +50,8 @@ export interface LaidOutNode extends GNode {
   height: number;
   /** Label and subtitle, wrapped and truncated to fit. */
   lines: string[];
+  /** The tags, wrapped and truncated to fit, between the label and the subtitle. */
+  taglines: string[];
   sublines: string[];
   /** Group whose label sits on its rail, at the start of a parallel branch. */
   rowLabel?: boolean;
@@ -83,6 +87,10 @@ export function stageBadges(s: Stage): Badge[] {
   }
   return b;
 }
+
+/** `${AXIS}` and `$AXIS` in a matrix agent's labels, filled in with one cell's values. */
+const fillCell = (tags: string[] | undefined, cell: Record<string, string> | undefined) =>
+  tags?.map((t) => (cell ? t.replace(/\$\{(\w+)\}|\$(\w+)/g, (m, a, b) => cell[a ?? b] ?? m) : t));
 
 export function buildGraph(p: Pipeline): PipelineGraph {
   const nodes: GNode[] = [];
@@ -121,17 +129,18 @@ export function buildGraph(p: Pipeline): PipelineGraph {
     const id = prefix + s.id;
     const conditional = !!s.when;
     const badges = stageBadges(s);
+    const tags = s.agent?.labels;
     switch (s.body.kind) {
       case 'steps':
       case 'empty':
-        return addNode({ id, parentId, kind: 'stage', label: s.name, stageId: s.id, conditional, badges });
+        return addNode({ id, parentId, kind: 'stage', label: s.name, stageId: s.id, conditional, tags, badges });
       case 'stages': {
-        addNode({ id, parentId, kind: 'group', groupKind: 'stages', label: s.name, subtitle: 'stages', stageId: s.id, conditional, badges });
+        addNode({ id, parentId, kind: 'group', groupKind: 'stages', label: s.name, subtitle: 'stages', stageId: s.id, conditional, tags, badges });
         sequence(s.body.stages, id, prefix);
         return id;
       }
       case 'parallel': {
-        addNode({ id, parentId, kind: 'group', groupKind: 'parallel', label: s.name, subtitle: 'parallel', stageId: s.id, conditional, badges });
+        addNode({ id, parentId, kind: 'group', groupKind: 'parallel', label: s.name, subtitle: 'parallel', stageId: s.id, conditional, tags, badges });
         const branchIds = s.body.branches.map((b) => addStage(b, id, prefix));
         fanOut(id, branchIds);
         return id;
@@ -152,6 +161,7 @@ export function buildGraph(p: Pipeline): PipelineGraph {
           subtitle: `matrix ${dims} → ${m.cells.length} cell${m.cells.length === 1 ? '' : 's'}`,
           stageId: s.id,
           conditional: conditional || !!m.when,
+          tags,
           badges: mBadges,
         });
         const expand = m.cells.length <= MATRIX_EXPAND_LIMIT;
@@ -159,11 +169,13 @@ export function buildGraph(p: Pipeline): PipelineGraph {
         const cellIds = cells.map((cell, ci) => {
           const cellLabel = expand ? Object.values(cell).join(' · ') : `each of ${m.cells.length} cells`;
           const cellId = `${id}::cell${ci}`;
+          const cellTags = fillCell(m.agent?.labels, expand ? cell : undefined);
           if (m.stages.length === 1) {
             const st = m.stages[0];
-            return addNode({ id: cellId, parentId: id, kind: 'stage', label: st.name, subtitle: cellLabel, stageId: st.id, conditional: !!st.when, badges: stageBadges(st) });
+            const stTags = fillCell(st.agent?.labels, expand ? cell : undefined) ?? cellTags;
+            return addNode({ id: cellId, parentId: id, kind: 'stage', label: st.name, subtitle: cellLabel, stageId: st.id, conditional: !!st.when, tags: stTags, badges: stageBadges(st) });
           }
-          addNode({ id: cellId, parentId: id, kind: 'group', groupKind: 'cell', label: cellLabel, badges: [] });
+          addNode({ id: cellId, parentId: id, kind: 'group', groupKind: 'cell', label: cellLabel, tags: cellTags, badges: [] });
           sequence(m.stages, cellId, `${cellId}::`);
           return cellId;
         });
@@ -211,6 +223,8 @@ const WRAP_GAP = 32;
 /** How far outside a wrapped row the connector turns. Must stay below PAD. */
 const WRAP_TURN = 12;
 
+const tagText = (n: GNode) => (n.tags?.length ? n.tags.map((t) => `#${t}`).join(' ') : '');
+
 const clip = (s: string) => (s.length > MAX_LINE ? `${s.slice(0, MAX_LINE - 1)}…` : s);
 
 /** Wraps to at most two lines, truncating whatever doesn't fit. */
@@ -239,7 +253,7 @@ interface Box {
   place: (x: number, rail: number) => void;
 }
 
-type Geometry = Pick<LaidOutNode, 'absX' | 'absY' | 'width' | 'height' | 'lines' | 'sublines' | 'rowLabel'>;
+type Geometry = Pick<LaidOutNode, 'absX' | 'absY' | 'width' | 'height' | 'lines' | 'taglines' | 'sublines' | 'rowLabel'>;
 
 export interface LayoutOptions {
   /** Break top-level stages onto new rows to fit this width. Omit for a single row. */
@@ -262,16 +276,17 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
     const dot = n.kind === 'start' || n.kind === 'end';
     const r = dot ? DOT_R : STAGE_R;
     const lines = dot ? [n.label] : wrapLabel(n.label);
+    const taglines = wrapLabel(tagText(n));
     const sublines = n.subtitle ? wrapLabel(n.subtitle) : [];
-    const textH = LABEL_GAP + (lines.length + sublines.length) * LINE_H;
-    const width = Math.max(2 * r, ...[...lines, ...sublines].map((l) => l.length * CHAR_W));
+    const textH = LABEL_GAP + (lines.length + taglines.length + sublines.length) * LINE_H;
+    const width = Math.max(2 * r, ...[...lines, ...taglines, ...sublines].map((l) => l.length * CHAR_W));
     return {
       width,
       up: dot ? r + textH : r,
       down: dot ? r : r + textH,
       place: (x, rail) => {
         const cx = x + width / 2;
-        placed.set(n.id, { absX: cx - r, absY: rail - r, width: 2 * r, height: 2 * r, lines, sublines });
+        placed.set(n.id, { absX: cx - r, absY: rail - r, width: 2 * r, height: 2 * r, lines, taglines, sublines });
         ports.set(n.id, { inX: cx - r, outX: cx + r, y: rail });
       },
     };
@@ -309,7 +324,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
         const forkX = x + TRUNK / 2;
         const joinX = x + width - TRUNK / 2;
         for (const [id, at] of [[`${group.id}::fork`, forkX], [`${group.id}::join`, joinX]] as const) {
-          placed.set(id, { absX: at, absY: rail, width: 0, height: 0, lines: [], sublines: [] });
+          placed.set(id, { absX: at, absY: rail, width: 0, height: 0, lines: [], taglines: [], sublines: [] });
           ports.set(id, { inX: at, outX: at, y: rail });
         }
         ports.set(group.id, { inX: forkX, outX: joinX, y: rail });
@@ -338,7 +353,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
         place: (x, rail) => {
           const bodyX = x + labelW + ROW_LEAD;
           body.place(bodyX, rail);
-          placed.set(n.id, { absX: x, absY: rail - LINE_H / 2, width: labelW, height: LINE_H, lines: [label], sublines: [], rowLabel: true });
+          placed.set(n.id, { absX: x, absY: rail - LINE_H / 2, width: labelW, height: LINE_H, lines: [label], taglines: [], sublines: [], rowLabel: true });
           portsFromChildren(bodyX, rail);
           const port = ports.get(n.id)!;
           if (items.length) {
@@ -350,8 +365,9 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
     }
 
     const lines = wrapLabel(n.label);
-    const titleH = lines.length * LINE_H + LABEL_GAP;
-    const width = Math.max(body.width, ...lines.map((l) => l.length * TITLE_CHAR_W));
+    const taglines = wrapLabel(tagText(n));
+    const titleH = (lines.length + taglines.length) * LINE_H + LABEL_GAP;
+    const width = Math.max(body.width, ...lines.map((l) => l.length * TITLE_CHAR_W), ...taglines.map((l) => l.length * CHAR_W));
     const up = body.up + titleH;
     return {
       width,
@@ -360,7 +376,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
       place: (x, rail) => {
         const bodyX = x + (width - body.width) / 2;
         body.place(bodyX, rail);
-        placed.set(n.id, { absX: x, absY: rail - up, width, height: titleH, lines, sublines: [] });
+        placed.set(n.id, { absX: x, absY: rail - up, width, height: titleH, lines, taglines, sublines: [] });
         if (!forked) portsFromChildren(bodyX, rail);
       },
     };

@@ -22,6 +22,8 @@ export interface Agent {
   kind: AgentKind;
   /** Short human-readable summary, e.g. `label linux` or `docker node:20`. */
   summary: string;
+  /** Node label names the agent asks for, e.g. `['linux', 'docker']` for `label 'linux && docker'`. */
+  labels?: string[];
   raw: string;
   loc: SourceRange;
 }
