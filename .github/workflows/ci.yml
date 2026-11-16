@@ -39,6 +39,9 @@ jobs:
           pnpm test
           pnpm build
 
+      - name: Package VS Code extension
+        run: pnpm --filter jenkinsfile-visualizer package
+
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -65,4 +68,11 @@ jobs:
         with:
           name: intellij-plugin
           path: packages/intellij/build/distributions/*.zip
+          if-no-files-found: error
+
+      - name: Upload VS Code extension
+        uses: actions/upload-artifact@v7
+        with:
+          name: vscode-extension
+          path: packages/vscode/dist/*.vsix
           if-no-files-found: error

@@ -29,7 +29,9 @@ can paste into GitHub Markdown; **Download SVG** saves the picture.
 | Path | What |
 | --- | --- |
 | `packages/core` | Host-agnostic TypeScript: Groovy-aware lexer, tolerant block parser, declarative interpreter with validation, graph builder, rail layout, Mermaid and SVG export |
-| `packages/web` | React viewer: CodeMirror editor, SVG preview, details panel. Builds to a single HTML file (also the future IntelliJ/VS Code webview) |
+| `packages/web` | React viewer: CodeMirror editor, SVG preview, details panel. Builds to a single HTML file, plus the diagram-only page the IDE plugins embed |
+| `packages/intellij` | IntelliJ plugin (Kotlin, JCEF) |
+| `packages/vscode` | VS Code extension (TypeScript, webview) |
 | `fixtures/handwritten` | Samples covering every declarative feature plus edge cases (Groovy string traps, scripted pipeline, missing brace) |
 | `fixtures/public` | Real Jenkinsfiles from jenkinsci/jenkins (scripted), apache/camel, apache/maven, apache/zookeeper (Apache-2.0) and jenkinsci/pipeline-model-definition-plugin tests (MIT) |
 
@@ -58,6 +60,22 @@ It shows `packages/web/embed.html`, a diagram-only page driven through
 `window.jpvView.setSource(text)` and `window.jpvView.setTheme(dark, background)`.
 In Dual view, clicking a stage or the post node moves the caret to it in the code,
 and placing the caret inside a stage in the code rings that stage in the diagram.
+
+## VS Code extension
+
+`packages/vscode` adds **Open Pipeline Preview** to the editor title bar for the same file names. It
+shows the same `embed.html` in a webview under the code, using the full width like IntelliJ
+(set `jenkinsfileVisualizer.previewPosition` to `beside` to put it on the right instead). As in IntelliJ's Dual view, clicking a stage moves the
+caret to it, the caret rings its stage, and dragging, renaming or removing a stage edits the file (undo works).
+The wrap button in the preview's title bar toggles wrapping.
+
+```sh
+pnpm --filter jenkinsfile-visualizer package   # packages/vscode/dist/*.vsix, for Extensions: Install from VSIX…
+```
+
+To try it from source, open the repo in VS Code and run **Run VS Code extension** (F5).
+`packages/web/src/vscodeBridge.ts` turns webview messages into the `window.jpvView` / `window.jpvHost` calls
+described below. It does nothing outside VS Code.
 
 ## Host bridge (for IDE plugins)
 

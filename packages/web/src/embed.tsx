@@ -6,6 +6,7 @@ import { RELEASE_POINTER, useStageDrag } from './useStageDrag';
 import { useStageRename } from './useStageRename';
 import { useWrappedLayout } from './useWrappedLayout';
 import './embed.css';
+import './vscodeBridge';
 
 /** Diagram page for IDE plugins: the IDE owns the editor, pushes text and theme in, and hears about stage clicks. */
 declare global {
