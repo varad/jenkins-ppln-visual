@@ -66,6 +66,11 @@ class Interpreter {
     return this.range(s.start, last ? last.end : s.end);
   }
 
+  /** The statement's `{ ... }`, if its closing brace was found. */
+  blockLoc(s: Statement): SourceRange | undefined {
+    return s.closure?.closed ? this.range(s.closure.start, s.closure.end) : undefined;
+  }
+
   report(severity: Diagnostic['severity'], message: string, loc: SourceRange) {
     this.diagnostics.push({ severity, message, loc });
   }
@@ -147,6 +152,7 @@ class Interpreter {
         case 'stages':
           sawStages = true;
           p.stages = this.stages(d, '', false);
+          p.stagesBlock = this.blockLoc(d);
           break;
         case 'post':
           p.post = this.post(d);
@@ -260,6 +266,7 @@ class Interpreter {
       id: this.uniqueId(path, name),
       name,
       dynamicName: !!nameTok?.interpolated,
+      nameLoc: nameTok?.kind === 'string' ? this.range(nameTok.start, nameTok.end) : undefined,
       body: { kind: 'empty' },
       loc: this.loc(s),
       headerLoc: this.headLoc(s),
@@ -330,9 +337,9 @@ class Interpreter {
         if (d.closure.statements.length === 0) this.report('warning', `stage '${stage.name}' has empty steps.`, this.headLoc(d));
         return { kind: 'steps', steps: this.steps(d.closure) };
       case 'stages':
-        return { kind: 'stages', stages: this.stages(d, stage.id, nestedInParallel) };
+        return { kind: 'stages', stages: this.stages(d, stage.id, nestedInParallel), block: this.blockLoc(d) };
       case 'parallel':
-        return { kind: 'parallel', branches: this.stages(d, stage.id, true) };
+        return { kind: 'parallel', branches: this.stages(d, stage.id, true), block: this.blockLoc(d) };
       case 'matrix':
         return { kind: 'matrix', matrix: this.matrix(d, stage.id) };
     }

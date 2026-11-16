@@ -45,7 +45,7 @@ class JenkinsfileEditorProvider : FileEditorProvider, DumbAware {
     override fun createEditor(project: Project, file: VirtualFile): FileEditor {
         val code = TextEditorProvider.getInstance().createEditor(project, file) as TextEditor
         val document = FileDocumentManager.getInstance().getDocument(file)!!
-        return JenkinsfileEditor(code, PipelinePreview(file, document))
+        return JenkinsfileEditor(code, PipelinePreview(project, file, document))
     }
 
     override fun getEditorTypeId() = "jenkinsfile-visualizer"

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { buildGraph, layoutGraph, parseJenkinsfile, toMermaid, toSvg, type PipelineLayout, type SourceRange } from '@jpv/core';
+import { applyEdit, buildGraph, layoutGraph, parseJenkinsfile, toMermaid, toSvg, type PipelineLayout, type SourceRange, type StageEdit, type TextEdit } from '@jpv/core';
 import { Canvas } from './Canvas';
 import { Details } from './Details';
 import { Editor, type EditorHandle } from './Editor';
@@ -10,8 +10,21 @@ import { indexStages, innermostStage } from './stages';
 declare global {
   interface Window {
     jpv?: { setSource: (text: string) => void };
-    jpvHost?: { onSelect?: (range: SourceRange) => void; onHover?: (clickable: boolean) => void };
+    jpvHost?: {
+      onSelect?: (range: SourceRange) => void;
+      onCursor?: (cursor: HostCursor) => void;
+      /**
+       * A stage was moved or renamed in the diagram: apply `edit` to the document if it is still at `version`,
+       * then select the stage at `select`. `label` names the undoable command.
+       */
+      onEdit?: (edit: TextEdit & { version: number; select: number; label: string }) => void;
+      /** A stage name box opened in the diagram, so the page needs keyboard focus. */
+      onFocus?: () => void;
+      /** An uncaught error in the page, for the host's log. */
+      onError?: (message: string) => void;
+    };
   }
+  type HostCursor = 'default' | 'pointer' | 'grab' | 'grabbing' | 'text';
 }
 
 function download(name: string, text: string, type: string) {
@@ -53,6 +66,8 @@ export function App() {
   const [dragging, setDragging] = useState(false);
   const [wrap, setWrap] = useState(readWrap);
   const editor = useRef<EditorHandle | null>(null);
+  /** Source offset of a stage just moved or renamed in the diagram, to select once the new text is parsed. */
+  const movedTo = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -93,6 +108,24 @@ export function App() {
       if (st) reveal(st.headerLoc);
     },
     [stages, reveal],
+  );
+
+  useEffect(() => {
+    if (movedTo.current === null) return;
+    const st = innermostStage(stages, movedTo.current);
+    movedTo.current = null;
+    if (st) select(st.id);
+  }, [stages, select]);
+
+  const onEdit = useCallback(
+    (m: StageEdit) => {
+      // The edit was computed against the parsed text; drop it if typing has moved on since.
+      if (source !== debounced || !editor.current) return;
+      editor.current.replace(m.edit.start, m.edit.end, m.edit.text);
+      movedTo.current = m.stageOffset;
+      setDebounced(applyEdit(debounced, m.edit));
+    },
+    [source, debounced],
   );
 
   const onCursor = useCallback(
@@ -226,10 +259,12 @@ export function App() {
           {result.pipeline ? (
             <Canvas
               pipeline={result.pipeline}
+              source={debounced}
               wrap={wrap}
               selectedStageId={selected}
               onSelect={select}
               onPostClick={() => result.pipeline?.post && reveal(result.pipeline.post.loc)}
+              onEdit={onEdit}
             />
           ) : (
             <div className="empty">

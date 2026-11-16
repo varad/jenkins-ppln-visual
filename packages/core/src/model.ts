@@ -113,8 +113,9 @@ export interface Matrix {
 
 export type StageBody =
   | { kind: 'steps'; steps: Step[] }
-  | { kind: 'stages'; stages: Stage[] }
-  | { kind: 'parallel'; branches: Stage[] }
+  // `block` is the list's `{ ... }`, present only when its closing brace was found.
+  | { kind: 'stages'; stages: Stage[]; block?: SourceRange }
+  | { kind: 'parallel'; branches: Stage[]; block?: SourceRange }
   | { kind: 'matrix'; matrix: Matrix }
   | { kind: 'empty' };
 
@@ -134,6 +135,8 @@ export interface Stage {
   post?: Post;
   body: StageBody;
   loc: SourceRange;
+  /** The name's string literal, quotes included, when the name is one. */
+  nameLoc?: SourceRange;
   /** Range of just the `stage('name')` header, for highlighting. */
   headerLoc: SourceRange;
 }
@@ -147,6 +150,8 @@ export interface Pipeline {
   tools?: KV[];
   libraries?: string[];
   stages: Stage[];
+  /** The top-level `stages { ... }` block, present only when its closing brace was found. */
+  stagesBlock?: SourceRange;
   post?: Post;
   loc: SourceRange;
 }
