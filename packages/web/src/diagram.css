@@ -13,9 +13,13 @@
 .svg-preview [data-stage-id].movable { cursor: grab; touch-action: none; }
 .svg-preview.dragging-stage, .svg-preview.dragging-stage * { cursor: grabbing !important; }
 .svg-preview [data-stage-id].dragging { opacity: 0.35; }
-.svg-preview .jpv-drop-ghost { opacity: 0.7; }
-/* Let the ghost follow the pointer past the drawing's edge, e.g. down to the trash area. */
-.svg-preview.dragging-stage svg { overflow: visible; }
+/* The dragged copy is its own fixed element (not part of the diagram's SVG), so it can follow the pointer
+   past the drawing's edge, e.g. down to the trash area, without leaving stale paint behind. */
+.jpv-drop-ghost {
+  position: fixed; z-index: 1001; pointer-events: none; opacity: 0.7;
+  will-change: transform;
+}
+.jpv-drop-ghost svg { display: block; overflow: visible; }
 .svg-preview .jpv-drop-marker { stroke: #488cdb; stroke-width: 4; stroke-linecap: round; }
 
 /* Inline stage rename (useStageRename), also DOM-only. A text cursor on the name says it can be edited. */
@@ -33,9 +37,9 @@
 .jpv-trash {
   position: fixed; transform: translateX(-50%); z-index: 1000; pointer-events: none;
   padding: 10px 22px; border: 2px dashed #8c959f; border-radius: 10px;
-  background: rgba(140, 149, 159, 0.14); color: #8c959f; backdrop-filter: blur(4px);
+  background: rgba(140, 149, 159, 0.14); color: #8c959f;
   font: 600 13px Lato, Inter, system-ui, sans-serif; white-space: nowrap;
   transition: border-color 0.1s, background-color 0.1s, color 0.1s;
 }
 .jpv-trash.active { border-color: #cf222e; background: rgba(207, 34, 46, 0.16); color: #cf222e; }
-.svg-preview .jpv-drop-ghost.removing { opacity: 0.3; }
+.jpv-drop-ghost.removing { opacity: 0.3; }
