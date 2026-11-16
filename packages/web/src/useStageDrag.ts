@@ -6,6 +6,11 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const DRAG_THRESHOLD = 4;
 /** How close to a drop slot the pointer has to be, in SVG units. */
 const SNAP = 40;
+/**
+ * After the pointer capture goes away mid-drag, how long the page waits for a move with the button still held
+ * before it gives up on the drag. Short enough that a drag a popup interrupted doesn't hang on screen.
+ */
+const CAPTURE_GRACE_MS = 400;
 /** Window event an embedding host sends when it saw a release the page missed; `detail.drop` drops rather than cancels. */
 export const RELEASE_POINTER = 'jpv-release-pointer';
 
@@ -41,6 +46,19 @@ function makeGhost(svg: SVGSVGElement, g: SVGGraphicsElement): HTMLDivElement {
   ghostSvg.append(copy);
   el.append(ghostSvg);
   return el;
+}
+
+/**
+ * Marks the whole page as changed for a couple of frames without changing a pixel.
+ * Off-screen JCEF (the IntelliJ preview) has been seen to keep showing a drag's ghost, drop marker and old diagram
+ * after the drag ended and the edit was made, as if only some of the changed areas reached the screen; a repaint of
+ * the full page puts back what is really there.
+ */
+function repaintWholePage() {
+  const veil = document.createElement('div');
+  veil.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;background:rgba(0,0,0,0.001)';
+  document.body.append(veil);
+  requestAnimationFrame(() => requestAnimationFrame(() => veil.remove()));
 }
 
 interface Options {
@@ -87,6 +105,8 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
       overTrash?: boolean;
       /** The pointer capture went away without a pointerup, so the pointer may have been let go anywhere. */
       captureLost?: boolean;
+      /** Cancels the drag unless a move with the button held arrives first; set while captureLost. */
+      captureTimer?: ReturnType<typeof setTimeout>;
     } | null = null;
     let swallowClick = false;
 
@@ -94,12 +114,14 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
 
     const end = () => {
       if (drag) {
+        clearTimeout(drag.captureTimer);
         drag.overlay.remove();
         drag.trash?.remove();
         drag.ghost.remove();
         press?.g.classList.remove('dragging');
         container.classList.remove('dragging-stage');
         cb.current.onDragChange?.(false);
+        repaintWholePage();
       }
       if (press && container.hasPointerCapture(press.pointerId)) container.releasePointerCapture(press.pointerId);
       press = null;
@@ -107,6 +129,8 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
     };
 
     const onDown = (e: PointerEvent) => {
+      // A new press while a drag is still on screen means its release went somewhere else, e.g. to a popup.
+      if (drag) cancel();
       swallowClick = false;
       if (e.button !== 0) return;
       const g = (e.target as Element).closest('[data-stage-id]');
@@ -125,6 +149,17 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
         if (drag?.captureLost) cancel();
         else finish();
         return;
+      }
+      if (drag?.captureLost) {
+        // The button is still held, so the capture went away for some other reason: take it back and carry on.
+        clearTimeout(drag.captureTimer);
+        drag.captureLost = false;
+        drag.captureTimer = undefined;
+        try {
+          container.setPointerCapture(press.pointerId);
+        } catch {
+          // The pointer is gone; the next event without the button ends the drag.
+        }
       }
       if (!drag) {
         if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_THRESHOLD) return;
@@ -209,9 +244,16 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
       end();
     };
 
-    // Not cancelled outright: a host may drop the capture while the button is still held.
+    // Not cancelled outright: a host may drop the capture while the button is still held, and then a move
+    // with the button down follows at once. Without one, a popup or another window most likely took the pointer.
     const onLostCapture = () => {
-      if (drag) drag.captureLost = true;
+      if (!drag || drag.captureLost) return;
+      drag.captureLost = true;
+      drag.captureTimer = setTimeout(cancel, CAPTURE_GRACE_MS);
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) cancel();
     };
 
     const onHostRelease = (e: Event) => {
@@ -233,22 +275,24 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
     container.addEventListener('pointerdown', onDown);
     container.addEventListener('pointermove', onMoveEvt);
     container.addEventListener('pointerup', finish);
-    container.addEventListener('pointercancel', end);
+    container.addEventListener('pointercancel', cancel);
     container.addEventListener('lostpointercapture', onLostCapture);
     container.addEventListener('click', onClick, true);
     window.addEventListener('keydown', onKey);
     window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener(RELEASE_POINTER, onHostRelease);
     return () => {
       end();
       container.removeEventListener('pointerdown', onDown);
       container.removeEventListener('pointermove', onMoveEvt);
       container.removeEventListener('pointerup', finish);
-      container.removeEventListener('pointercancel', end);
+      container.removeEventListener('pointercancel', cancel);
       container.removeEventListener('lostpointercapture', onLostCapture);
       container.removeEventListener('click', onClick, true);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('blur', cancel);
+      document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener(RELEASE_POINTER, onHostRelease);
     };
   }, [container, layout, pipeline, source, removable]);
