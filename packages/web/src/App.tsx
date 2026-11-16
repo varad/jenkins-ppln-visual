@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { applyEdit, buildGraph, layoutGraph, parseJenkinsfile, toMermaid, toSvg, type PipelineLayout, type SourceRange, type StageMove, type TextEdit } from '@jpv/core';
+import { applyEdit, buildGraph, layoutGraph, parseJenkinsfile, toMermaid, toSvg, type PipelineLayout, type SourceRange, type StageEdit, type TextEdit } from '@jpv/core';
 import { Canvas } from './Canvas';
 import { Details } from './Details';
 import { Editor, type EditorHandle } from './Editor';
@@ -13,8 +13,13 @@ declare global {
     jpvHost?: {
       onSelect?: (range: SourceRange) => void;
       onCursor?: (cursor: HostCursor) => void;
-      /** A stage was dragged: apply `edit` to the document if it is still at `version`, then select the stage at `select`. */
-      onEdit?: (edit: TextEdit & { version: number; select: number }) => void;
+      /**
+       * A stage was moved or renamed in the diagram: apply `edit` to the document if it is still at `version`,
+       * then select the stage at `select`. `label` names the undoable command.
+       */
+      onEdit?: (edit: TextEdit & { version: number; select: number; label: string }) => void;
+      /** A stage name box opened in the diagram, so the page needs keyboard focus. */
+      onFocus?: () => void;
     };
   }
   type HostCursor = 'default' | 'pointer' | 'grab' | 'grabbing';
@@ -59,7 +64,7 @@ export function App() {
   const [dragging, setDragging] = useState(false);
   const [wrap, setWrap] = useState(readWrap);
   const editor = useRef<EditorHandle | null>(null);
-  /** Source offset of a stage just moved by drag & drop, to select once the new text is parsed. */
+  /** Source offset of a stage just moved or renamed in the diagram, to select once the new text is parsed. */
   const movedTo = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -110,9 +115,9 @@ export function App() {
     if (st) select(st.id);
   }, [stages, select]);
 
-  const onMove = useCallback(
-    (m: StageMove) => {
-      // The move was computed against the parsed text; drop it if typing has moved on since.
+  const onEdit = useCallback(
+    (m: StageEdit) => {
+      // The edit was computed against the parsed text; drop it if typing has moved on since.
       if (source !== debounced || !editor.current) return;
       editor.current.replace(m.edit.start, m.edit.end, m.edit.text);
       movedTo.current = m.stageOffset;
@@ -257,7 +262,7 @@ export function App() {
               selectedStageId={selected}
               onSelect={select}
               onPostClick={() => result.pipeline?.post && reveal(result.pipeline.post.loc)}
-              onMove={onMove}
+              onEdit={onEdit}
             />
           ) : (
             <div className="empty">

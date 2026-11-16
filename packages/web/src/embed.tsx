@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
-import { applyEdit, parseJenkinsfile, toSvg, type StageMove } from '@jpv/core';
+import { applyEdit, parseJenkinsfile, toSvg, type StageEdit } from '@jpv/core';
 import { indexStages, innermostStage } from './stages';
 import { useStageDrag } from './useStageDrag';
+import { useStageRename } from './useStageRename';
 import { useWrappedLayout } from './useWrappedLayout';
 import './embed.css';
 
@@ -57,10 +58,10 @@ function reportCursor(next: HostCursor) {
   window.jpvHost?.onCursor?.(next);
 }
 
-/** Applies a stage move locally right away, and asks the IDE to make the same edit to its document. */
-function moveStage(m: StageMove) {
+/** Applies a stage move or rename locally right away, and asks the IDE to make the same edit to its document. */
+function applyStageEdit(m: StageEdit, label: string) {
   if (source === null) return;
-  window.jpvHost?.onEdit?.({ ...m.edit, version, select: m.stageOffset });
+  window.jpvHost?.onEdit?.({ ...m.edit, version, select: m.stageOffset, label });
   source = applyEdit(source, m.edit);
   listeners.forEach((l) => l());
 }
@@ -80,11 +81,20 @@ function Viewer() {
     layout,
     pipeline: result.pipeline,
     source: text ?? '',
-    onMove: moveStage,
+    onMove: (m) => applyStageEdit(m, 'Move Stage'),
     onDragChange: (d) => {
       dragging = d;
       reportCursor(d ? 'grabbing' : 'default');
     },
+  });
+  useStageRename({
+    container,
+    layout,
+    pipeline: result.pipeline,
+    source: text ?? '',
+    onRename: (m) => applyStageEdit(m, 'Rename Stage'),
+    // The clicks before a double-click hand focus to the IDE's text editor; take it back for typing.
+    onEditStart: () => window.jpvHost?.onFocus?.(),
   });
   const svg = useMemo(() => (layout ? toSvg(layout) : ''), [layout]);
   const stages = useMemo(() => indexStages(result.pipeline?.stages ?? []), [result]);

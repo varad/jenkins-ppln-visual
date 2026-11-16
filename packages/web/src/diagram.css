@@ -13,3 +13,13 @@
 .svg-preview [data-stage-id].dragging { opacity: 0.35; }
 .svg-preview .jpv-drop-ghost { opacity: 0.7; }
 .svg-preview .jpv-drop-marker { stroke: #488cdb; stroke-width: 4; stroke-linecap: round; }
+
+/* Inline stage rename (useStageRename), also DOM-only. */
+.svg-preview .jpv-rename { overflow: visible; }
+.svg-preview .jpv-rename input {
+  box-sizing: border-box; width: 100%; height: 100%; margin: 0; padding: 0 6px;
+  font: 13px Lato, Inter, system-ui, sans-serif; text-align: center;
+  color: inherit; background: Canvas; border: 1px solid #488cdb; border-radius: 4px; outline: none;
+  box-shadow: 0 0 0 3px rgba(72, 140, 219, 0.25);
+}
+.svg-preview .jpv-rename input.invalid { border-color: #cf222e; box-shadow: 0 0 0 3px rgba(207, 34, 46, 0.2); }

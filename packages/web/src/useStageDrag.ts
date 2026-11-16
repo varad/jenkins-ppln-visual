@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { canMove, dropSlots, moveStage, slotDistance, type DropSlot, type Pipeline, type PipelineLayout, type StageMove } from '@jpv/core';
+import { canMove, dropSlots, moveStage, slotDistance, type DropSlot, type Pipeline, type PipelineLayout, type StageEdit } from '@jpv/core';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 /** Pointer travel before a press on a stage becomes a drag, so plain clicks still select. */
@@ -13,7 +13,7 @@ interface Options {
   pipeline: Pipeline | undefined;
   /** The text `pipeline` was parsed from. */
   source: string;
-  onMove: (move: StageMove) => void;
+  onMove: (move: StageEdit) => void;
   onDragChange?: (dragging: boolean) => void;
 }
 

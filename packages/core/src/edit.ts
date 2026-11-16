@@ -36,7 +36,7 @@ export interface TextEdit {
   text: string;
 }
 
-export interface StageMove {
+export interface StageEdit {
   /** One replacement that performs the whole move. */
   edit: TextEdit;
   /** Where the moved stage starts in the edited text, to select it afterwards. */
@@ -167,7 +167,7 @@ interface Part {
 }
 
 /** Merges non-overlapping parts into one replacement. */
-function combine(src: string, parts: Part[]): StageMove | null {
+function combine(src: string, parts: Part[]): StageEdit | null {
   const sorted = [...parts].sort((a, b) => a.start - b.start || a.end - a.start - (b.end - b.start));
   let text = '';
   let stageOffset = -1;
@@ -208,7 +208,7 @@ function unwrapPart(src: string, ix: PipelineIndex, s: Stage): Part | undefined 
   return { start, end: wl.end, text: movedText(src, rest, rl, indentAt(src, w.loc.start)).text };
 }
 
-export function moveStage(src: string, p: Pipeline, stageId: string, t: DropTarget): StageMove | null {
+export function moveStage(src: string, p: Pipeline, stageId: string, t: DropTarget): StageEdit | null {
   if (!canMove(p, stageId, t)) return null;
   const ix = indexPipeline(p);
   const s = ix.stages.get(stageId)!;
@@ -261,6 +261,43 @@ export function moveStage(src: string, p: Pipeline, stageId: string, t: DropTarg
 
 export function applyEdit(src: string, e: TextEdit): string {
   return src.slice(0, e.start) + e.text + src.slice(e.end);
+}
+
+/** Whether the stage's name is a plain string literal that a rename can rewrite (not a GString like "Deploy ${X}"). */
+export function canRename(p: Pipeline, stageId: string): boolean {
+  const s = indexPipeline(p).stages.get(stageId);
+  return !!s?.nameLoc && !s.dynamicName;
+}
+
+/** The stage name as it reads, with the literal's backslash escapes resolved. */
+export function displayName(s: Stage): string {
+  return s.name.replace(/\\(.)/g, '$1');
+}
+
+/** Why `name` can't be the stage's new name, or null when it can. */
+export function renameError(p: Pipeline, stageId: string, name: string): string | null {
+  const s = indexPipeline(p).stages.get(stageId);
+  if (!s || !canRename(p, stageId)) return 'This stage cannot be renamed.';
+  const n = name.trim();
+  if (!n) return 'A stage needs a name.';
+  if (/[\r\n]/.test(n)) return 'A stage name must fit on one line.';
+  if (n === displayName(s)) return 'The name is unchanged.';
+  for (const o of indexPipeline(p).stages.values()) {
+    if (o !== s && displayName(o) === n) return `Another stage is already named '${n}'.`;
+  }
+  return null;
+}
+
+/** Rewrites only the stage's name literal, keeping a plain double-quoted name double-quoted. */
+export function renameStage(src: string, p: Pipeline, stageId: string, name: string): StageEdit | null {
+  if (renameError(p, stageId, name)) return null;
+  const s = indexPipeline(p).stages.get(stageId)!;
+  const loc = s.nameLoc!;
+  const n = name.trim();
+  const literal = src.slice(loc.start, loc.end);
+  const double = literal.startsWith('"') && !literal.startsWith('"""');
+  const text = double ? `"${n.replace(/[\\"$]/g, (c) => `\\${c}`)}"` : groovyQuote(n);
+  return { edit: { start: loc.start, end: loc.end, text }, stageOffset: s.loc.start };
 }
 
 /** A place a dragged stage can drop: a vertical marker on a rail ('v'), or a horizontal one between parallel branches ('h'). */

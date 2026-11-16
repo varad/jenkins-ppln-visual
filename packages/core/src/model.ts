@@ -135,6 +135,8 @@ export interface Stage {
   post?: Post;
   body: StageBody;
   loc: SourceRange;
+  /** The name's string literal, quotes included, when the name is one. */
+  nameLoc?: SourceRange;
   /** Range of just the `stage('name')` header, for highlighting. */
   headerLoc: SourceRange;
 }

@@ -266,6 +266,7 @@ class Interpreter {
       id: this.uniqueId(path, name),
       name,
       dynamicName: !!nameTok?.interpolated,
+      nameLoc: nameTok?.kind === 'string' ? this.range(nameTok.start, nameTok.end) : undefined,
       body: { kind: 'empty' },
       loc: this.loc(s),
       headerLoc: this.headLoc(s),

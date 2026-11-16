@@ -14,6 +14,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.wm.IdeFocusManager
 import com.intellij.ui.ColorUtil
 import com.intellij.ui.JBColor
 import com.intellij.ui.jcef.JBCefApp
@@ -37,8 +38,11 @@ internal var wrapDiagram: Boolean
     get() = PropertiesComponent.getInstance().getBoolean(WRAP_KEY, true)
     set(value) = PropertiesComponent.getInstance().setValue(WRAP_KEY, value, true)
 
-/** A stage drag in the diagram, as one replacement made against the document at [version] (its modification stamp). */
-private class StageMove(val start: Int, val end: Int, val text: String?, val version: Long, val select: Int)
+/**
+ * A stage move or rename in the diagram, as one replacement made against the document at [version] (its modification stamp).
+ * [label] names the undoable command.
+ */
+private class StageEdit(val start: Int, val end: Int, val text: String?, val version: Long, val select: Int, val label: String?)
 
 /** Shows the pipeline drawing for [document] and redraws it as the document or IDE theme changes. */
 class PipelinePreview(private val project: Project, private val file: VirtualFile, private val document: Document) :
@@ -65,6 +69,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
     private val stageClicks = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val stageHovers = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val stageMoves = JBCefJSQuery.create(browser as JBCefBrowserBase)
+    private val focusRequests = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val renders = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private val gson = Gson()
 
@@ -79,6 +84,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
         Disposer.register(this, stageClicks)
         Disposer.register(this, stageHovers)
         Disposer.register(this, stageMoves)
+        Disposer.register(this, focusRequests)
 
         // Runs on a CEF thread.
         stageClicks.addHandler { request ->
@@ -103,8 +109,17 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
 
         // Runs on a CEF thread.
         stageMoves.addHandler { request ->
-            runCatching { gson.fromJson(request, StageMove::class.java) }.getOrNull()?.let { move ->
-                ApplicationManager.getApplication().invokeLater { applyMove(move) }
+            runCatching { gson.fromJson(request, StageEdit::class.java) }.getOrNull()?.let { edit ->
+                ApplicationManager.getApplication().invokeLater { applyEdit(edit) }
+            }
+            null
+        }
+
+        // Runs on a CEF thread. Queued after the caret moves of the clicks before a double-click,
+        // which focus the text editor, so the diagram's name box ends up with the keyboard.
+        focusRequests.addHandler {
+            ApplicationManager.getApplication().invokeLater {
+                IdeFocusManager.getGlobalInstance().requestFocus(browser.component, true)
             }
             null
         }
@@ -115,7 +130,8 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
                 val bridge = "window.jpvHost = { onSelect: function (range) { " +
                     stageClicks.inject("String(range.start)") + " }, onCursor: function (cursor) { " +
                     stageHovers.inject("cursor") + " }, onEdit: function (edit) { " +
-                    stageMoves.inject("JSON.stringify(edit)") + " } };"
+                    stageMoves.inject("JSON.stringify(edit)") + " }, onFocus: function () { " +
+                    focusRequests.inject("''") + " } };"
                 cefBrowser.executeJavaScript(bridge, cefBrowser.url, 0)
                 pageLoaded = true
                 scheduleRender(0)
@@ -146,18 +162,18 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
         if (pageLoaded) browser.cefBrowser.executeJavaScript("window.jpvView.setCaret($offset);", browser.cefBrowser.url, 0)
     }
 
-    /** Call on the EDT. Makes a stage move from the diagram an undoable edit, unless the document changed meanwhile. */
-    private fun applyMove(move: StageMove) {
-        val text = move.text
-        val valid = text != null && move.version == document.modificationStamp && document.isWritable &&
-            move.start in 0..move.end && move.end <= document.textLength
+    /** Call on the EDT. Makes a stage move or rename from the diagram an undoable edit, unless the document changed meanwhile. */
+    private fun applyEdit(edit: StageEdit) {
+        val text = edit.text
+        val valid = text != null && edit.version == document.modificationStamp && document.isWritable &&
+            edit.start in 0..edit.end && edit.end <= document.textLength
         if (valid) {
-            WriteCommandAction.runWriteCommandAction(project, "Move Stage", null, {
-                document.replaceString(move.start, move.end, text!!)
+            WriteCommandAction.runWriteCommandAction(project, edit.label ?: "Move Stage", null, {
+                document.replaceString(edit.start, edit.end, text!!)
             })
-            onStageClick?.invoke(move.select)
+            onStageClick?.invoke(edit.select)
         }
-        // The diagram already shows the move; redraw from the document either way so they agree.
+        // The diagram already shows the edit; redraw from the document either way so they agree.
         scheduleRender(0)
     }
 

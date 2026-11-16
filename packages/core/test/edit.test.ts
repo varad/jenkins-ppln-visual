@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { applyEdit, buildGraph, canMove, dropSlots, indexStages, layoutGraph, moveStage, parseJenkinsfile, slotDistance, type DropTarget } from '../src/index.js';
+import { applyEdit, buildGraph, canMove, canRename, dropSlots, indexStages, layoutGraph, moveStage, parseJenkinsfile, renameError, renameStage, slotDistance, type DropTarget } from '../src/index.js';
 
 const FIXTURES = join(__dirname, '../../../fixtures');
 const read = (f: string) => readFileSync(join(FIXTURES, f), 'utf8');
@@ -200,4 +200,62 @@ describe('every valid drop slot gives a valid pipeline', () => {
       });
     }
   }
+});
+
+describe('renameStage', () => {
+  const basic = read('handwritten/01-basic.Jenkinsfile');
+  const kitchen = read('handwritten/02-kitchen-sink.Jenkinsfile');
+
+  function rename(src: string, stageId: string, name: string) {
+    const p = parseJenkinsfile(src).pipeline!;
+    const r = renameStage(src, p, stageId, name);
+    if (!r) return null;
+    const out = applyEdit(src, r.edit);
+    return { out, result: parseJenkinsfile(out), stageOffset: r.stageOffset };
+  }
+
+  it('rewrites only the name literal', () => {
+    const r = rename(basic, 'Build', 'Compile')!;
+    expect(r.out).toBe(basic.replace("stage('Build')", "stage('Compile')"));
+    expect(names(r.out, null)).toEqual(['Checkout', 'Compile', 'Test', 'Package']);
+    expect(r.out.slice(r.stageOffset).startsWith("stage('Compile')")).toBe(true);
+  });
+
+  it('renames nested, parallel and matrix stages', () => {
+    expect(names(rename(kitchen, 'Test/Unit', 'Unit tests')!.out, 'Test')).toEqual(['Unit tests', 'E2E']);
+    expect(names(rename(kitchen, 'Test/E2E/Setup', 'Install')!.out, 'Test/E2E')).toEqual(['Install', 'Run']);
+    const m = rename(kitchen, 'Cross-platform/Smoke', 'Sanity')!;
+    expect(m.out).toContain("stage('Sanity')");
+    expect(m.result.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+  });
+
+  it('keeps double quotes and escapes what the literal needs', () => {
+    const src = basic.replace("stage('Build')", 'stage("Build")');
+    expect(rename(src, 'Build', 'Build "$all"')!.out).toContain('stage("Build \\"\\$all\\"")');
+    const r = rename(basic, 'Build', "It's \\ here")!;
+    expect(r.out).toContain("stage('It\\'s \\\\ here')");
+    const p = r.result.pipeline!;
+    expect(p.stages[1].dynamicName).toBe(false);
+    expect(renameError(p, p.stages[1].id, "It's \\ here")).toBe('The name is unchanged.');
+  });
+
+  it('trims the new name', () => {
+    expect(names(rename(basic, 'Build', '  Compile ')!.out, null)[1]).toBe('Compile');
+  });
+
+  it('refuses names that are empty, unchanged, taken or multi-line', () => {
+    const p = parseJenkinsfile(basic).pipeline!;
+    for (const n of ['', '   ', 'Build', 'Test', 'a\nb']) {
+      expect(renameError(p, 'Build', n)).not.toBeNull();
+      expect(renameStage(basic, p, 'Build', n)).toBeNull();
+    }
+  });
+
+  it('refuses dynamic names', () => {
+    const src = basic.replace("stage('Build')", 'stage("Build ${env.X}")');
+    const p = parseJenkinsfile(src).pipeline!;
+    const id = p.stages[1].id;
+    expect(canRename(p, id)).toBe(false);
+    expect(renameStage(src, p, id, 'Compile')).toBeNull();
+  });
 });
