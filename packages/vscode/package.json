@@ -1,0 +1,86 @@
+{
+  "name": "jenkinsfile-visualizer",
+  "displayName": "Jenkinsfile Visualizer",
+  "description": "Draws the stages of a declarative Jenkinsfile next to its code.",
+  "version": "0.2.0",
+  "publisher": "jpv",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/varad/jenkins-ppln-visual"
+  },
+  "categories": [
+    "Visualization"
+  ],
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "main": "./dist/extension.js",
+  "browser": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "jpv.openPreviewToSide",
+        "title": "Open Pipeline Preview",
+        "category": "Jenkinsfile",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "jpv.toggleWrap",
+        "title": "Toggle Diagram Wrap",
+        "category": "Jenkinsfile",
+        "icon": "$(word-wrap)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "jpv.openPreviewToSide",
+          "when": "resourceFilename =~ /^jenkinsfile(\\..*)?$|\\.jenkinsfile$/i && activeWebviewPanelId != 'jpv.preview'",
+          "group": "navigation"
+        },
+        {
+          "command": "jpv.toggleWrap",
+          "when": "activeWebviewPanelId == 'jpv.preview'",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "jpv.openPreviewToSide",
+          "when": "resourceFilename =~ /^jenkinsfile(\\..*)?$|\\.jenkinsfile$/i"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Jenkinsfile Visualizer",
+      "properties": {
+        "jenkinsfileVisualizer.previewPosition": {
+          "type": "string",
+          "enum": [
+            "below",
+            "beside"
+          ],
+          "default": "below",
+          "enumDescriptions": [
+            "Under the code, using the full width: pipeline drawings are wide.",
+            "To the right of the code."
+          ],
+          "description": "Where Open Pipeline Preview puts the diagram."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build:webview": "pnpm --filter @jpv/web build:embed && node scripts/copy-webview.mjs",
+    "build": "pnpm build:webview && esbuild src/extension.ts --bundle --format=cjs --platform=node --target=es2022 --external:vscode --outfile=dist/extension.js",
+    "typecheck": "tsc --noEmit -p .",
+    "package": "pnpm build && vsce package --no-dependencies --out dist/"
+  },
+  "devDependencies": {
+    "@types/vscode": "~1.100.0",
+    "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.28.2"
+  }
+}

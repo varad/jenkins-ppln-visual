@@ -28,6 +28,7 @@ jobs:
         run: |
           mkdir -p release
           cp artifacts/*.zip release/
+          cp artifacts/*.vsix release/
           cp artifacts/dist/index.html release/jenkins-visualizer.html
           ls -la release
 

@@ -1,2 +1,7 @@
 packages:
   - packages/*
+
+# Neither script is needed: esbuild's binary comes as an optional dependency, and vsce-sign only signs Marketplace uploads.
+allowBuilds:
+  esbuild: false
+  '@vscode/vsce-sign': false
