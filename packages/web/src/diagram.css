@@ -3,6 +3,8 @@
 /* The stable gutter stops a vertical scrollbar from changing the width the layout wraps to. */
 .svg-preview { overflow: auto; scrollbar-gutter: stable; }
 .svg-preview svg { display: block; }
+/* Labels can't be selected, so a drag never picks up text as a native drag. */
+.svg-preview svg { -webkit-user-select: none; user-select: none; }
 /* bounding-box: an SVG group is otherwise only hit on its painted parts, leaving a dead gap between circle and label. */
 .svg-preview [data-stage-id], .svg-preview [data-post] { cursor: pointer; pointer-events: bounding-box; }
 .svg-preview [data-stage-id]:hover > .jpv-ring, .svg-preview [data-post]:hover > .jpv-ring { visibility: visible; }
@@ -12,6 +14,8 @@
 .svg-preview.dragging-stage, .svg-preview.dragging-stage * { cursor: grabbing !important; }
 .svg-preview [data-stage-id].dragging { opacity: 0.35; }
 .svg-preview .jpv-drop-ghost { opacity: 0.7; }
+/* Let the ghost follow the pointer past the drawing's edge, e.g. down to the trash area. */
+.svg-preview.dragging-stage svg { overflow: visible; }
 .svg-preview .jpv-drop-marker { stroke: #488cdb; stroke-width: 4; stroke-linecap: round; }
 
 /* Inline stage rename (useStageRename), also DOM-only. A text cursor on the name says it can be edited. */
@@ -24,3 +28,14 @@
   box-shadow: 0 0 0 3px rgba(72, 140, 219, 0.25);
 }
 .svg-preview .jpv-rename input.invalid { border-color: #cf222e; box-shadow: 0 0 0 3px rgba(207, 34, 46, 0.2); }
+
+/* The trash area that appears while dragging a stage (useStageDrag); dropping on it removes the stage. */
+.jpv-trash {
+  position: fixed; transform: translateX(-50%); z-index: 1000; pointer-events: none;
+  padding: 10px 22px; border: 2px dashed #8c959f; border-radius: 10px;
+  background: rgba(140, 149, 159, 0.14); color: #8c959f; backdrop-filter: blur(4px);
+  font: 600 13px Lato, Inter, system-ui, sans-serif; white-space: nowrap;
+  transition: border-color 0.1s, background-color 0.1s, color 0.1s;
+}
+.jpv-trash.active { border-color: #cf222e; background: rgba(207, 34, 46, 0.16); color: #cf222e; }
+.svg-preview .jpv-drop-ghost.removing { opacity: 0.3; }

@@ -40,7 +40,7 @@ export interface TextEdit {
 export interface StageEdit {
   /** One replacement that performs the whole move. */
   edit: TextEdit;
-  /** Where the moved stage starts in the edited text, to select it afterwards. */
+  /** Where the moved stage starts in the edited text, to select it afterwards; -1 when there is none (a removal). */
   stageOffset: number;
 }
 
@@ -316,6 +316,28 @@ export function moveStage(src: string, p: Pipeline, stageId: string, t: DropTarg
   const overlaps = (a: Part, b: Part) => a.start < b.end && b.start < a.end;
   const removal = unwrap && !overlaps(unwrap, place) ? unwrap : { start: gone.start, end: gone.end, text: '' };
   return combine(src, [removal, place]);
+}
+
+/** Whether the stage can be removed: not a matrix cell, and not the pipeline's last stage. */
+export function canRemove(p: Pipeline, stageId: string): boolean {
+  const ix = indexPipeline(p);
+  const s = ix.stages.get(stageId);
+  if (!s || ix.inMatrix.has(stageId) || !ix.lists.get(ix.parent.get(stageId) ?? null)?.block) return false;
+  return !!leavingStage(ix, s);
+}
+
+/**
+ * Deletes the stage's lines, with the comments above it. As with a move, a stage left empty goes too,
+ * and a bare wrapper left with one stage is replaced by that stage.
+ */
+export function removeStage(src: string, p: Pipeline, stageId: string): StageEdit | null {
+  if (!canRemove(p, stageId)) return null;
+  const ix = indexPipeline(p);
+  const leaving = leavingStage(ix, ix.stages.get(stageId)!)!;
+  const gone = stageLines(src, leaving);
+  if (!gone) return null;
+  const part = unwrapPart(src, ix, leaving) ?? { start: gone.start, end: gone.end, text: '' };
+  return { edit: { start: part.start, end: part.end, text: part.text }, stageOffset: -1 };
 }
 
 export function applyEdit(src: string, e: TextEdit): string {

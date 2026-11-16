@@ -20,6 +20,8 @@ declare global {
       onEdit?: (edit: TextEdit & { version: number; select: number; label: string }) => void;
       /** A stage name box opened in the diagram, so the page needs keyboard focus. */
       onFocus?: () => void;
+      /** An uncaught error in the page, for the host's log. */
+      onError?: (message: string) => void;
     };
   }
   type HostCursor = 'default' | 'pointer' | 'grab' | 'grabbing' | 'text';

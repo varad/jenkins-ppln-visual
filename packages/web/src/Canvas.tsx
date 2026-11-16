@@ -18,7 +18,7 @@ interface Props {
 export function Canvas({ pipeline, source, wrap, selectedStageId, onSelect, onPostClick, onEdit }: Props) {
   const { container, setContainer, layout } = useWrappedLayout(pipeline, wrap);
   const svg = useMemo(() => (layout ? toSvg(layout) : ''), [layout]);
-  useStageDrag({ container, layout, pipeline, source, onMove: onEdit });
+  useStageDrag({ container, layout, pipeline, source, onMove: onEdit, onRemove: onEdit });
   useStageRename({ container, layout, pipeline, source, onRename: onEdit });
 
   useEffect(() => {

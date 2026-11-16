@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { LABEL_GAP, LINE_H, applyEdit, buildGraph, canMove, canRename, dropSlots, indexStages, layoutGraph, moveStage, parseJenkinsfile, renameError, renameStage, slotDistance, type DropTarget } from '../src/index.js';
+import { LABEL_GAP, LINE_H, applyEdit, buildGraph, canMove, canRemove, canRename, dropSlots, indexStages, layoutGraph, moveStage, parseJenkinsfile, removeStage, renameError, renameStage, slotDistance, type DropTarget } from '../src/index.js';
 
 const FIXTURES = join(__dirname, '../../../fixtures');
 const read = (f: string) => readFileSync(join(FIXTURES, f), 'utf8');
@@ -299,6 +299,85 @@ describe('running a stage in parallel', () => {
     expect(canMove(kitchen, 'Cross-platform/Smoke', { fork: 'Build' })).toBe(false); // a matrix cell
     expect(canMove(kitchen, 'Build', { fork: 'Cross-platform/Smoke' })).toBe(false);
   });
+});
+
+describe('removeStage', () => {
+  const abc = `pipeline {
+    agent any
+    stages {
+        stage('a') { steps { echo 'a' } }
+        // b runs the slow suite
+        stage('b') { steps { echo 'b' } }
+        stage('c') { steps { echo 'c' } }
+    }
+}
+`;
+  const kitchen = read('handwritten/02-kitchen-sink.Jenkinsfile');
+  const errors = (r: ReturnType<typeof parseJenkinsfile>) => r.diagnostics.filter((d) => d.severity === 'error');
+  function remove(src: string, stageId: string) {
+    const p = parseJenkinsfile(src).pipeline!;
+    const r = removeStage(src, p, stageId);
+    if (!r) return null;
+    expect(r.stageOffset).toBe(-1);
+    const out = applyEdit(src, r.edit);
+    return { out, result: parseJenkinsfile(out) };
+  }
+
+  it('deletes the stage with the comments above it', () => {
+    expect(remove(abc, 'b')!.out).toBe(abc.replace("        // b runs the slow suite\n        stage('b') { steps { echo 'b' } }\n", ''));
+  });
+
+  it('removes a stage left empty, and collapses the parallel it leaves with one branch', () => {
+    const single = move(kitchen, 'Test/E2E/Setup', { containerId: null, index: 0 })!.out;
+    const r = remove(single, 'Test/E2E/Run')!;
+    expect(names(r.out, null)).toEqual(['Setup', 'Build', 'Unit', 'Cross-platform', 'Deploy']);
+    expect(r.out).not.toContain('node:20');
+    expect(errors(r.result)).toEqual([]);
+  });
+
+  it('undoes a fork when a branch is removed', () => {
+    const forked = move(abc, 'b', { fork: 'a' })!.out;
+    expect(remove(forked, 'a | b/b')!.out).toBe(abc.replace("        // b runs the slow suite\n        stage('b') { steps { echo 'b' } }\n", ''));
+  });
+
+  it('keeps a parallel that has settings of its own', () => {
+    const ff = read('handwritten/03-parallel-failfast.Jenkinsfile');
+    const tests = parseJenkinsfile(ff).pipeline!.stages.find((x) => x.name === 'Tests')!;
+    if (tests.body.kind !== 'parallel') throw new Error('fixture changed');
+    let out = ff;
+    for (const b of tests.body.branches.slice(1)) out = remove(out, b.id)!.out;
+    expect(names(out, 'Tests')).toHaveLength(1);
+  });
+
+  it("refuses the pipeline's last stage, matrix cells and unknown stages", () => {
+    const one = "pipeline {\n    agent any\n    stages {\n        stage('X') {\n            stages {\n                stage('Y') { steps { echo 'y' } }\n            }\n        }\n    }\n}\n";
+    const p1 = parseJenkinsfile(one).pipeline!;
+    expect(canRemove(p1, 'X')).toBe(false);
+    expect(canRemove(p1, 'X/Y')).toBe(false);
+    const p = parseJenkinsfile(kitchen).pipeline!;
+    expect(canRemove(p, 'Cross-platform/Smoke')).toBe(false);
+    expect(canRemove(p, 'nope')).toBe(false);
+    expect(removeStage(kitchen, p, 'nope')).toBeNull();
+    expect(canRemove(p, 'Cross-platform')).toBe(true);
+  });
+
+  for (const dir of ['handwritten', 'public']) {
+    const files = readdirSync(join(FIXTURES, dir), { withFileTypes: true }).filter((e) => e.isFile() && !e.name.startsWith('.'));
+    for (const f of files.map((e) => e.name).sort()) {
+      it(`leaves a valid pipeline: ${dir}/${f}`, () => {
+        const src = read(`${dir}/${f}`);
+        const r = parseJenkinsfile(src);
+        if (!r.pipeline) return;
+        for (const id of indexStages(r.pipeline.stages).keys()) {
+          const m = canRemove(r.pipeline, id) ? removeStage(src, r.pipeline, id) : null;
+          if (!m) continue;
+          const after = parseJenkinsfile(applyEdit(src, m.edit));
+          expect(errors(after).length, id).toBeLessThanOrEqual(errors(r).length);
+          expect(indexStages(after.pipeline!.stages).has(id), id).toBe(false);
+        }
+      });
+    }
+  }
 });
 
 describe('every valid drop slot gives a valid pipeline', () => {

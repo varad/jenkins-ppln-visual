@@ -5,6 +5,7 @@ import com.intellij.ide.ui.LafManagerListener
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
@@ -26,11 +27,19 @@ import com.intellij.util.ui.UIUtil
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.handler.CefLoadHandlerAdapter
+import java.awt.AWTEvent
 import java.awt.Cursor
+import java.awt.Toolkit
+import java.awt.event.AWTEventListener
+import java.awt.event.MouseEvent
 import java.beans.PropertyChangeListener
 import javax.swing.JComponent
+import javax.swing.SwingUtilities
 
 private const val DEBOUNCE_MS = 200
+
+/** How long after a mouse release the page gets to end a drag itself before the IDE ends it. */
+private const val RELEASE_GRACE_MS = 150
 private const val WRAP_KEY = "jpv.wrap"
 
 /** Whether diagrams wrap to the window width. Shared by the whole IDE. */
@@ -39,7 +48,7 @@ internal var wrapDiagram: Boolean
     set(value) = PropertiesComponent.getInstance().setValue(WRAP_KEY, value, true)
 
 /**
- * A stage move or rename in the diagram, as one replacement made against the document at [version] (its modification stamp).
+ * A stage move, rename or removal in the diagram, as one replacement made against the document at [version] (its modification stamp).
  * [label] names the undoable command.
  */
 private class StageEdit(val start: Int, val end: Int, val text: String?, val version: Long, val select: Int, val label: String?)
@@ -70,11 +79,17 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
     private val stageHovers = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val stageMoves = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val focusRequests = JBCefJSQuery.create(browser as JBCefBrowserBase)
+    private val pageErrors = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val renders = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+    private val releases = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private val gson = Gson()
 
     @Volatile
     private var pageLoaded = false
+
+    /** The page is dragging a stage; it reports the grabbing cursor for exactly that long. */
+    @Volatile
+    private var pageDragging = false
 
     private var caretOffset = 0
 
@@ -85,6 +100,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
         Disposer.register(this, stageHovers)
         Disposer.register(this, stageMoves)
         Disposer.register(this, focusRequests)
+        Disposer.register(this, pageErrors)
 
         // Runs on a CEF thread.
         stageClicks.addHandler { request ->
@@ -96,6 +112,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
 
         // Runs on a CEF thread.
         stageHovers.addHandler { request ->
+            pageDragging = request == "grabbing"
             val type = when (request) {
                 "pointer", "grab" -> Cursor.HAND_CURSOR
                 "grabbing" -> Cursor.MOVE_CURSOR
@@ -125,6 +142,28 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
             null
         }
 
+        // Runs on a CEF thread.
+        pageErrors.addHandler { request ->
+            thisLogger().warn("Jenkinsfile preview: $request")
+            null
+        }
+
+        // A popup that shows up mid-drag, like a notification balloon, can take the mouse release, so the page
+        // never sees it and the drag hangs. The IDE sees every release: if the page is still dragging shortly
+        // after one, tell it to drop (released over the diagram) or cancel (released anywhere else).
+        val releaseWatcher = AWTEventListener { event ->
+            if (event.id != MouseEvent.MOUSE_RELEASED || !pageDragging) return@AWTEventListener
+            val inside = SwingUtilities.isDescendingFrom((event as MouseEvent).component, browser.component)
+            releases.cancelAllRequests()
+            releases.addRequest({
+                if (pageDragging && pageLoaded) {
+                    browser.cefBrowser.executeJavaScript("window.jpvView.releasePointer($inside);", browser.cefBrowser.url, 0)
+                }
+            }, RELEASE_GRACE_MS)
+        }
+        Toolkit.getDefaultToolkit().addAWTEventListener(releaseWatcher, AWTEvent.MOUSE_EVENT_MASK)
+        Disposer.register(this) { Toolkit.getDefaultToolkit().removeAWTEventListener(releaseWatcher) }
+
         browser.jbCefClient.addLoadHandler(object : CefLoadHandlerAdapter() {
             override fun onLoadEnd(cefBrowser: CefBrowser, frame: CefFrame, httpStatusCode: Int) {
                 if (!frame.isMain) return
@@ -132,7 +171,8 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
                     stageClicks.inject("String(range.start)") + " }, onCursor: function (cursor) { " +
                     stageHovers.inject("cursor") + " }, onEdit: function (edit) { " +
                     stageMoves.inject("JSON.stringify(edit)") + " }, onFocus: function () { " +
-                    focusRequests.inject("''") + " } };"
+                    focusRequests.inject("''") + " }, onError: function (message) { " +
+                    pageErrors.inject("message") + " } };"
                 cefBrowser.executeJavaScript(bridge, cefBrowser.url, 0)
                 pageLoaded = true
                 scheduleRender(0)
@@ -163,7 +203,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
         if (pageLoaded) browser.cefBrowser.executeJavaScript("window.jpvView.setCaret($offset);", browser.cefBrowser.url, 0)
     }
 
-    /** Call on the EDT. Makes a stage move or rename from the diagram an undoable edit, unless the document changed meanwhile. */
+    /** Call on the EDT. Makes a stage move, rename or removal from the diagram an undoable edit, unless the document changed meanwhile. */
     private fun applyEdit(edit: StageEdit) {
         val text = edit.text
         val valid = text != null && edit.version == document.modificationStamp && document.isWritable &&
@@ -172,7 +212,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
             WriteCommandAction.runWriteCommandAction(project, edit.label ?: "Move Stage", null, {
                 document.replaceString(edit.start, edit.end, text!!)
             })
-            onStageClick?.invoke(edit.select)
+            if (edit.select >= 0) onStageClick?.invoke(edit.select) // a removal has nothing to select
         }
         // The diagram already shows the edit; redraw from the document either way so they agree.
         scheduleRender(0)

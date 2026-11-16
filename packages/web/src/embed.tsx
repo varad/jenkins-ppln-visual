@@ -2,7 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { applyEdit, parseJenkinsfile, toSvg, type StageEdit } from '@jpv/core';
 import { indexStages, innermostStage } from './stages';
-import { useStageDrag } from './useStageDrag';
+import { RELEASE_POINTER, useStageDrag } from './useStageDrag';
 import { useStageRename } from './useStageRename';
 import { useWrappedLayout } from './useWrappedLayout';
 import './embed.css';
@@ -16,6 +16,11 @@ declare global {
       setTheme: (dark: boolean, background: string) => void;
       setWrap: (wrap: boolean) => void;
       setCaret: (offset: number | null) => void;
+      /**
+       * The host saw the mouse button go up while the page was still dragging a stage: the page missed the release
+       * (an IDE popup took it, say). `drop` when it was let go over the diagram, so the drag drops; otherwise it is cancelled.
+       */
+      releasePointer: (drop: boolean) => void;
     };
   }
 }
@@ -45,7 +50,14 @@ window.jpvView = {
     caret = offset;
     listeners.forEach((l) => l());
   },
+  releasePointer(drop) {
+    window.dispatchEvent(new CustomEvent(RELEASE_POINTER, { detail: { drop } }));
+  },
 };
+
+// Errors in an IDE's embedded browser are otherwise invisible; hand them to the host's log.
+window.addEventListener('error', (e) => window.jpvHost?.onError?.(String(e.error?.stack ?? e.message)));
+window.addEventListener('unhandledrejection', (e) => window.jpvHost?.onError?.(String(e.reason?.stack ?? e.reason)));
 
 let cursor: HostCursor = 'default';
 let dragging = false;
@@ -58,7 +70,7 @@ function reportCursor(next: HostCursor) {
   window.jpvHost?.onCursor?.(next);
 }
 
-/** Applies a stage move or rename locally right away, and asks the IDE to make the same edit to its document. */
+/** Applies a stage move, rename or removal locally right away, and asks the IDE to make the same edit to its document. */
 function applyStageEdit(m: StageEdit, label: string) {
   if (source === null) return;
   window.jpvHost?.onEdit?.({ ...m.edit, version, select: m.stageOffset, label });
@@ -82,6 +94,7 @@ function Viewer() {
     pipeline: result.pipeline,
     source: text ?? '',
     onMove: (m) => applyStageEdit(m, 'Move Stage'),
+    onRemove: (m) => applyStageEdit(m, 'Remove Stage'),
     onDragChange: (d) => {
       dragging = d;
       reportCursor(d ? 'grabbing' : 'default');
