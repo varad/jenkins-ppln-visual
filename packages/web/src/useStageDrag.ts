@@ -9,6 +9,40 @@ const SNAP = 40;
 /** Window event an embedding host sends when it saw a release the page missed; `detail.drop` drops rather than cancels. */
 export const RELEASE_POINTER = 'jpv-release-pointer';
 
+/**
+ * Draws a copy of a stage in a small SVG of its own, fixed over the stage's place on screen.
+ * The copy used to live in the diagram's SVG with overflow: visible so it could leave the drawing,
+ * but paint outside an SVG's box is not reliably invalidated: in off-screen JCEF (IntelliJ on Windows)
+ * every frame of the drag stayed behind as clipped fragments of circles and labels.
+ */
+function makeGhost(svg: SVGSVGElement, g: SVGGraphicsElement): HTMLDivElement {
+  const PAD = 6;
+  const box = g.getBBox();
+  const ctm = g.getScreenCTM() ?? new DOMMatrix();
+  const scale = Math.hypot(ctm.a, ctm.b) || 1;
+  const topLeft = new DOMPoint(box.x - PAD, box.y - PAD).matrixTransform(ctm);
+  const w = box.width + 2 * PAD;
+  const h = box.height + 2 * PAD;
+  const el = document.createElement('div');
+  el.className = 'jpv-drop-ghost';
+  el.style.left = `${topLeft.x}px`;
+  el.style.top = `${topLeft.y}px`;
+  const ghostSvg = document.createElementNS(SVG_NS, 'svg');
+  ghostSvg.setAttribute('width', String(w * scale));
+  ghostSvg.setAttribute('height', String(h * scale));
+  ghostSvg.setAttribute('viewBox', `${box.x - PAD} ${box.y - PAD} ${w} ${h}`);
+  const font = svg.getAttribute('font-family');
+  if (font) ghostSvg.setAttribute('font-family', font);
+  const copy = g.cloneNode(true) as SVGGElement;
+  copy.removeAttribute('data-stage-id');
+  copy.removeAttribute('transform'); // getBBox and the viewBox are in the stage's own coordinates
+  copy.removeAttribute('class');
+  copy.querySelector('title')?.remove();
+  ghostSvg.append(copy);
+  el.append(ghostSvg);
+  return el;
+}
+
 interface Options {
   container: HTMLDivElement | null;
   layout: PipelineLayout | null;
@@ -45,7 +79,8 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
     let press: { id: string; g: Element; x: number; y: number; start: DOMPoint; pointerId: number } | null = null;
     let drag: {
       overlay: SVGGElement;
-      ghost: SVGGElement;
+      /** A copy of the stage in its own fixed-position element, so moving it never repaints the diagram. */
+      ghost: HTMLDivElement;
       marker: SVGLineElement;
       slot?: DropSlot;
       trash?: HTMLDivElement;
@@ -61,6 +96,7 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
       if (drag) {
         drag.overlay.remove();
         drag.trash?.remove();
+        drag.ghost.remove();
         press?.g.classList.remove('dragging');
         container.classList.remove('dragging-stage');
         cb.current.onDragChange?.(false);
@@ -99,12 +135,10 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
         const marker = document.createElementNS(SVG_NS, 'line');
         marker.setAttribute('class', 'jpv-drop-marker');
         marker.setAttribute('visibility', 'hidden');
-        const ghost = press.g.cloneNode(true) as SVGGElement;
-        ghost.removeAttribute('data-stage-id');
-        ghost.querySelector('title')?.remove();
-        ghost.setAttribute('class', 'jpv-drop-ghost');
-        overlay.append(marker, ghost);
+        overlay.append(marker);
         svg.append(overlay);
+        const ghost = makeGhost(svg, press.g as SVGGraphicsElement);
+        document.body.append(ghost);
         press.g.classList.add('dragging');
         container.classList.add('dragging-stage');
         drag = { overlay, ghost, marker };
@@ -122,7 +156,7 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
         cb.current.onDragChange?.(true);
       }
       const at = toSvg(e);
-      drag.ghost.setAttribute('transform', `translate(${at.x - press.start.x},${at.y - press.start.y})`);
+      drag.ghost.style.transform = `translate(${e.clientX - press.x}px,${e.clientY - press.y}px)`;
       const t = drag.trash?.getBoundingClientRect();
       drag.overTrash = !!t && e.clientX >= t.left && e.clientX <= t.right && e.clientY >= t.top && e.clientY <= t.bottom;
       drag.trash?.classList.toggle('active', drag.overTrash);
