@@ -4,11 +4,13 @@ import com.google.gson.Gson
 import com.intellij.ide.ui.LafManagerListener
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.FileEditor
 import com.intellij.openapi.fileEditor.FileEditorState
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.UserDataHolderBase
 import com.intellij.openapi.vfs.VirtualFile
@@ -35,8 +37,11 @@ internal var wrapDiagram: Boolean
     get() = PropertiesComponent.getInstance().getBoolean(WRAP_KEY, true)
     set(value) = PropertiesComponent.getInstance().setValue(WRAP_KEY, value, true)
 
+/** A stage drag in the diagram, as one replacement made against the document at [version] (its modification stamp). */
+private class StageMove(val start: Int, val end: Int, val text: String?, val version: Long, val select: Int)
+
 /** Shows the pipeline drawing for [document] and redraws it as the document or IDE theme changes. */
-class PipelinePreview(private val file: VirtualFile, private val document: Document) :
+class PipelinePreview(private val project: Project, private val file: VirtualFile, private val document: Document) :
     UserDataHolderBase(), FileEditor {
 
     companion object {
@@ -59,6 +64,7 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
     // Must be created before the CEF browser starts, which happens once the component is shown.
     private val stageClicks = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val stageHovers = JBCefJSQuery.create(browser as JBCefBrowserBase)
+    private val stageMoves = JBCefJSQuery.create(browser as JBCefBrowserBase)
     private val renders = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
     private val gson = Gson()
 
@@ -72,6 +78,7 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
         Disposer.register(this, browser)
         Disposer.register(this, stageClicks)
         Disposer.register(this, stageHovers)
+        Disposer.register(this, stageMoves)
 
         // Runs on a CEF thread.
         stageClicks.addHandler { request ->
@@ -83,9 +90,21 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
 
         // Runs on a CEF thread.
         stageHovers.addHandler { request ->
-            val type = if (request == "true") Cursor.HAND_CURSOR else Cursor.DEFAULT_CURSOR
+            val type = when (request) {
+                "pointer", "grab" -> Cursor.HAND_CURSOR
+                "grabbing" -> Cursor.MOVE_CURSOR
+                else -> Cursor.DEFAULT_CURSOR
+            }
             ApplicationManager.getApplication().invokeLater {
                 browser.cefBrowser.uiComponent.cursor = Cursor.getPredefinedCursor(type)
+            }
+            null
+        }
+
+        // Runs on a CEF thread.
+        stageMoves.addHandler { request ->
+            runCatching { gson.fromJson(request, StageMove::class.java) }.getOrNull()?.let { move ->
+                ApplicationManager.getApplication().invokeLater { applyMove(move) }
             }
             null
         }
@@ -94,8 +113,9 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
             override fun onLoadEnd(cefBrowser: CefBrowser, frame: CefFrame, httpStatusCode: Int) {
                 if (!frame.isMain) return
                 val bridge = "window.jpvHost = { onSelect: function (range) { " +
-                    stageClicks.inject("String(range.start)") + " }, onHover: function (clickable) { " +
-                    stageHovers.inject("String(clickable)") + " } };"
+                    stageClicks.inject("String(range.start)") + " }, onCursor: function (cursor) { " +
+                    stageHovers.inject("cursor") + " }, onEdit: function (edit) { " +
+                    stageMoves.inject("JSON.stringify(edit)") + " } };"
                 cefBrowser.executeJavaScript(bridge, cefBrowser.url, 0)
                 pageLoaded = true
                 scheduleRender(0)
@@ -126,6 +146,21 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
         if (pageLoaded) browser.cefBrowser.executeJavaScript("window.jpvView.setCaret($offset);", browser.cefBrowser.url, 0)
     }
 
+    /** Call on the EDT. Makes a stage move from the diagram an undoable edit, unless the document changed meanwhile. */
+    private fun applyMove(move: StageMove) {
+        val text = move.text
+        val valid = text != null && move.version == document.modificationStamp && document.isWritable &&
+            move.start in 0..move.end && move.end <= document.textLength
+        if (valid) {
+            WriteCommandAction.runWriteCommandAction(project, "Move Stage", null, {
+                document.replaceString(move.start, move.end, text!!)
+            })
+            onStageClick?.invoke(move.select)
+        }
+        // The diagram already shows the move; redraw from the document either way so they agree.
+        scheduleRender(0)
+    }
+
     private fun scheduleRender(delayMs: Int) {
         renders.cancelAllRequests()
         renders.addRequest(::render, delayMs)
@@ -137,7 +172,7 @@ class PipelinePreview(private val file: VirtualFile, private val document: Docum
         val script = "window.jpvView.setTheme(${!JBColor.isBright()}, '$background');" +
             "window.jpvView.setWrap($wrapDiagram);" +
             "window.jpvView.setCaret($caretOffset);" +
-            "window.jpvView.setSource(${gson.toJson(document.text)});"
+            "window.jpvView.setSource(${gson.toJson(document.text)}, ${document.modificationStamp});"
         browser.cefBrowser.executeJavaScript(script, browser.cefBrowser.url, 0)
     }
 

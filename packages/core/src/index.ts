@@ -5,3 +5,4 @@ export { parseCst } from './cst.js';
 export * from './graph.js';
 export { toMermaid } from './mermaid.js';
 export { toSvg } from './svg.js';
+export * from './edit.js';

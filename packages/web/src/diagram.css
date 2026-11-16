@@ -6,3 +6,10 @@
 /* bounding-box: an SVG group is otherwise only hit on its painted parts, leaving a dead gap between circle and label. */
 .svg-preview [data-stage-id], .svg-preview [data-post] { cursor: pointer; pointer-events: bounding-box; }
 .svg-preview [data-stage-id]:hover > .jpv-ring, .svg-preview [data-post]:hover > .jpv-ring { visibility: visible; }
+
+/* Stage drag & drop (useStageDrag). The overlay exists only in the page, never in toSvg output. */
+.svg-preview [data-stage-id].movable { cursor: grab; touch-action: none; }
+.svg-preview.dragging-stage, .svg-preview.dragging-stage * { cursor: grabbing !important; }
+.svg-preview [data-stage-id].dragging { opacity: 0.35; }
+.svg-preview .jpv-drop-ghost { opacity: 0.7; }
+.svg-preview .jpv-drop-marker { stroke: #488cdb; stroke-width: 4; stroke-linecap: round; }

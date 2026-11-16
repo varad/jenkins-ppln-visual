@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
-import { parseJenkinsfile, toSvg } from '@jpv/core';
+import { applyEdit, parseJenkinsfile, toSvg, type StageMove } from '@jpv/core';
 import { indexStages, innermostStage } from './stages';
+import { useStageDrag } from './useStageDrag';
 import { useWrappedLayout } from './useWrappedLayout';
 import './embed.css';
 
@@ -9,7 +10,8 @@ import './embed.css';
 declare global {
   interface Window {
     jpvView: {
-      setSource: (text: string) => void;
+      /** `version` (the IDE's document stamp) comes back with stage moves, so edits to stale text are dropped. */
+      setSource: (text: string, version?: number) => void;
       setTheme: (dark: boolean, background: string) => void;
       setWrap: (wrap: boolean) => void;
       setCaret: (offset: number | null) => void;
@@ -18,14 +20,16 @@ declare global {
 }
 
 let source: string | null = null;
+let version = 0;
 let wrap = true;
 let caret: number | null = null;
 const listeners = new Set<() => void>();
 
 // Defined at module scope so it exists by the time the host sees the page's load event.
 window.jpvView = {
-  setSource(text) {
+  setSource(text, v = 0) {
     source = text;
+    version = v;
     listeners.forEach((l) => l());
   },
   setTheme(dark, background) {
@@ -42,13 +46,23 @@ window.jpvView = {
   },
 };
 
-let overClickable = false;
+let cursor: HostCursor = 'default';
+let dragging = false;
 
 /** Out-of-process JCEF drops CSS cursor changes, so the IDE has to set the pointer itself. */
-function reportHover(clickable: boolean) {
-  if (clickable === overClickable) return;
-  overClickable = clickable;
-  window.jpvHost?.onHover?.(clickable);
+function reportCursor(next: HostCursor) {
+  if (dragging && next !== 'grabbing') return;
+  if (next === cursor) return;
+  cursor = next;
+  window.jpvHost?.onCursor?.(next);
+}
+
+/** Applies a stage move locally right away, and asks the IDE to make the same edit to its document. */
+function moveStage(m: StageMove) {
+  if (source === null) return;
+  window.jpvHost?.onEdit?.({ ...m.edit, version, select: m.stageOffset });
+  source = applyEdit(source, m.edit);
+  listeners.forEach((l) => l());
 }
 
 function subscribe(listener: () => void) {
@@ -61,6 +75,17 @@ function Viewer() {
   const result = useMemo(() => parseJenkinsfile(text ?? ''), [text]);
   const wrapped = useSyncExternalStore(subscribe, () => wrap);
   const { container, setContainer, layout } = useWrappedLayout(result.pipeline, wrapped);
+  useStageDrag({
+    container,
+    layout,
+    pipeline: result.pipeline,
+    source: text ?? '',
+    onMove: moveStage,
+    onDragChange: (d) => {
+      dragging = d;
+      reportCursor(d ? 'grabbing' : 'default');
+    },
+  });
   const svg = useMemo(() => (layout ? toSvg(layout) : ''), [layout]);
   const stages = useMemo(() => indexStages(result.pipeline?.stages ?? []), [result]);
   const caretOffset = useSyncExternalStore(subscribe, () => caret);
@@ -91,8 +116,11 @@ function Viewer() {
       ref={setContainer}
       className="svg-preview"
       dangerouslySetInnerHTML={{ __html: svg }}
-      onMouseOver={(e) => reportHover((e.target as Element).closest('[data-stage-id], [data-post]') !== null)}
-      onMouseLeave={() => reportHover(false)}
+      onMouseOver={(e) => {
+        const t = e.target as Element;
+        reportCursor(t.closest('[data-stage-id].movable') ? 'grab' : t.closest('[data-stage-id], [data-post]') ? 'pointer' : 'default');
+      }}
+      onMouseLeave={() => reportCursor('default')}
       onClick={(e) => {
         const target = e.target as Element;
         const id = target.closest('[data-stage-id]')?.getAttribute('data-stage-id');

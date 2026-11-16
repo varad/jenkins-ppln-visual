@@ -8,6 +8,8 @@ import type { Diagnostic, SourceRange } from '@jpv/core';
 
 export interface EditorHandle {
   reveal: (r: SourceRange) => void;
+  /** Replaces text as one undoable change. */
+  replace: (start: number, end: number, text: string) => void;
 }
 
 interface Props {
@@ -81,6 +83,9 @@ export function Editor({ value, onChange, onCursor, diagnostics, highlight, hand
         const len = v.state.doc.length;
         const from = Math.min(r.start, len);
         v.dispatch({ selection: { anchor: from }, effects: EditorView.scrollIntoView(from, { y: 'center' }) });
+      },
+      replace: (start, end, text) => {
+        v.dispatch({ changes: { from: start, to: end, insert: text }, userEvent: 'move' });
       },
     };
     return () => v.destroy();
