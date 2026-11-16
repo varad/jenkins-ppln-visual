@@ -22,7 +22,7 @@ declare global {
       onFocus?: () => void;
     };
   }
-  type HostCursor = 'default' | 'pointer' | 'grab' | 'grabbing';
+  type HostCursor = 'default' | 'pointer' | 'grab' | 'grabbing' | 'text';
 }
 
 function download(name: string, text: string, type: string) {

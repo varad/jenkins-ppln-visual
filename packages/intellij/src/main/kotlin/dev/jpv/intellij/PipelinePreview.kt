@@ -99,6 +99,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
             val type = when (request) {
                 "pointer", "grab" -> Cursor.HAND_CURSOR
                 "grabbing" -> Cursor.MOVE_CURSOR
+                "text" -> Cursor.TEXT_CURSOR
                 else -> Cursor.DEFAULT_CURSOR
             }
             ApplicationManager.getApplication().invokeLater {

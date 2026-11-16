@@ -128,7 +128,15 @@ function Viewer() {
       dangerouslySetInnerHTML={{ __html: svg }}
       onMouseOver={(e) => {
         const t = e.target as Element;
-        reportCursor(t.closest('[data-stage-id].movable') ? 'grab' : t.closest('[data-stage-id], [data-post]') ? 'pointer' : 'default');
+        reportCursor(
+          t.matches('[data-stage-id].renamable > text:not(.jpv-quiet)')
+            ? 'text'
+            : t.closest('[data-stage-id].movable')
+              ? 'grab'
+              : t.closest('[data-stage-id], [data-post]')
+                ? 'pointer'
+                : 'default',
+        );
       }}
       onMouseLeave={() => reportCursor('default')}
       onClick={(e) => {

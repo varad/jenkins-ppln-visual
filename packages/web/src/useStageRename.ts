@@ -29,6 +29,7 @@ export function useStageRename({ container, layout, pipeline, source, onRename, 
     const svg = container?.querySelector('svg');
     if (!container || !svg || !layout || !pipeline) return;
     const stages = indexStages(pipeline.stages);
+    container.querySelectorAll('[data-stage-id]').forEach((g) => g.classList.toggle('renamable', canRename(pipeline, g.getAttribute('data-stage-id')!)));
     let box: SVGForeignObjectElement | null = null;
 
     const close = () => {
