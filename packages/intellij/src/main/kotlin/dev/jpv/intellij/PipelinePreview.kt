@@ -31,13 +31,11 @@ import java.awt.AWTEvent
 import java.awt.Cursor
 import java.awt.Toolkit
 import java.awt.event.AWTEventListener
-import java.awt.event.ContainerEvent
 import java.awt.event.FocusEvent
 import java.awt.event.MouseEvent
 import java.awt.event.WindowEvent
 import java.beans.PropertyChangeListener
 import javax.swing.JComponent
-import javax.swing.JLayeredPane
 import javax.swing.SwingUtilities
 
 private const val DEBOUNCE_MS = 200
@@ -97,9 +95,6 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
     private var pageDragging = false
 
     private var caretOffset = 0
-
-    /** Something, like a notification balloon, was added to the preview's window during the current drag. Only touched on the EDT. */
-    private var overlayDuringDrag = false
 
     /** [releasePointer] has a cancel queued. Only touched on the EDT. */
     private var cancelPending = false
@@ -169,11 +164,6 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
         val releaseWatcher = AWTEventListener { event ->
             if (!pageDragging) return@AWTEventListener
             when {
-                // A balloon or popup appearing over the IDE: a layer added to this window, or a window of its own.
-                event.id == ContainerEvent.COMPONENT_ADDED && (event as ContainerEvent).container is JLayeredPane &&
-                    SwingUtilities.getWindowAncestor(event.container) == SwingUtilities.getWindowAncestor(browser.component) ->
-                    overlayDuringDrag = true
-                event.id == WindowEvent.WINDOW_OPENED -> overlayDuringDrag = true
                 event.id == MouseEvent.MOUSE_RELEASED -> {
                     val inside = SwingUtilities.isDescendingFrom((event as MouseEvent).component, browser.component)
                     releasePointer(inside, RELEASE_GRACE_MS)
@@ -193,7 +183,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
         }
         Toolkit.getDefaultToolkit().addAWTEventListener(
             releaseWatcher,
-            AWTEvent.MOUSE_EVENT_MASK or AWTEvent.FOCUS_EVENT_MASK or AWTEvent.WINDOW_EVENT_MASK or AWTEvent.CONTAINER_EVENT_MASK,
+            AWTEvent.MOUSE_EVENT_MASK or AWTEvent.FOCUS_EVENT_MASK or AWTEvent.WINDOW_EVENT_MASK,
         )
         Disposer.register(this) { Toolkit.getDefaultToolkit().removeAWTEventListener(releaseWatcher) }
 
@@ -231,30 +221,20 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
     fun refresh() = scheduleRender(0)
 
     /**
-     * Makes the browser draw the preview afresh a few times as a drag ends. When an IDE notification balloon shows
-     * up while the mouse button is held over the preview, off-screen rendering stops putting new frames on screen:
-     * the drop goes through, but the ghost, drop marker and old diagram stay until the preview is hidden and shown
-     * again (e.g. by switching tabs), and repainting the Swing component alone does not help. So after a drag that a
-     * window addition (the balloon) interrupted, hide and show the preview once; after any drag, send resize notices,
-     * which make the browser produce a new frame. Call on the EDT.
+     * Makes the browser put a fresh frame on screen once a drag has ended. Off-screen rendering has been seen,
+     * in Dual mode and when a notification balloon appears mid-drag, to keep showing the last drag frame (ghost,
+     * drop marker, old diagram) although the page had already dropped the stage and redrawn. Repainting the Swing
+     * component or a same-size resize notice doesn't bring the frames back; hiding the preview and showing it
+     * again does, as switching editor tabs does. It runs after the edit's redraw, at the cost of one blink. Call on the EDT.
      */
     private fun repaintAfterDrag() {
-        if (overlayDuringDrag) {
-            overlayDuringDrag = false
-            // What switching tabs does, and the one thing seen to bring the frames back: hide the preview and show it again.
-            repaints.addRequest({
-                val c = browser.component
-                c.isVisible = false
-                ApplicationManager.getApplication().invokeLater { c.isVisible = true }
-            }, 50)
-        }
-        for (delay in intArrayOf(50, 250, 1000)) {
-            repaints.addRequest({
-                val c = browser.component
-                browser.cefBrowser.wasResized(c.width, c.height)
-                c.repaint()
-            }, delay)
-        }
+        repaints.cancelAllRequests()
+        repaints.addRequest({
+            val c = browser.component
+            if (!c.isShowing) return@addRequest
+            c.isVisible = false
+            ApplicationManager.getApplication().invokeLater { c.isVisible = true }
+        }, 150)
     }
 
     /** Call on the EDT. Ends the page's drag after [delayMs], unless the page ended it by then: drops if [drop], else cancels. */
