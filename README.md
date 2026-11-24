@@ -52,9 +52,17 @@ needs `pnpm install` to have been run.
 
 ```sh
 cd packages/intellij
-./gradlew runIde        # try it in a sandbox IDE
-./gradlew buildPlugin   # build/distributions/*.zip, for Install Plugin from Disk
+./gradlew runIde            # try it in a sandbox IDE
+./gradlew runIdeSplitMode   # the same, as a backend plus a JetBrains Client (Remote Development)
+./gradlew buildPlugin       # build/distributions/*.zip, for Install Plugin from Disk
 ```
+
+The plugin has two content modules:
+- `frontend/` holds the editor and diagram. In Remote Development (split mode), it runs on the client, where the UI and JCEF are.
+- `groovy/` maps the Jenkinsfile names to Groovy for Code-mode highlighting. It runs wherever the Groovy plugin is, which in split mode is the host.
+
+Nothing runs only on the host: the diagram parses the text itself, in the page. For Remote Development, install the plugin on both
+the host and the client; a plugin installed from disk isn't copied from one to the other.
 
 It shows `packages/web/embed.html`, a diagram-only page driven through
 `window.jpvView.setSource(text)`, `window.jpvView.setTheme(dark, background)` and
@@ -102,4 +110,4 @@ To add a language:
    `LOCALES` in `packages/core/src/i18n/index.ts`. A plural message needs every form its language uses
    (`one`, `few`, `many`, `other`), and `pnpm test` checks this along with the keys and placeholders.
 2. VS Code: add `packages/vscode/package.nls.<code>.json` and `packages/vscode/l10n/bundle.l10n.<code>.json`.
-3. IntelliJ: add `packages/intellij/src/main/resources/messages/JpvBundle_<code>.properties`.
+3. IntelliJ: add `packages/intellij/frontend/src/main/resources/messages/JpvBundle_<code>.properties`.

@@ -7,11 +7,9 @@
       Switch between Code, View and Dual with the icons above the editor.
     ]]></description>
 
-    <depends>com.intellij.modules.platform</depends>
-    <depends>com.intellij.modules.jcef</depends>
-    <depends optional="true" config-file="groovy-support.xml">org.intellij.groovy</depends>
-
-    <extensions defaultExtensionNs="com.intellij">
-        <fileEditorProvider implementation="dev.jpv.intellij.JenkinsfileEditorProvider"/>
-    </extensions>
+    <!-- In split mode (Remote Development), the editor runs on the client and the Groovy mapping on the host. -->
+    <content>
+        <module name="dev.jpv.jenkinsfile.frontend" required-if-available="intellij.platform.frontend"/>
+        <module name="dev.jpv.jenkinsfile.groovy"/>
+    </content>
 </idea-plugin>

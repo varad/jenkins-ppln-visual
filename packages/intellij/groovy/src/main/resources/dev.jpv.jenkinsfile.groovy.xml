@@ -1,4 +1,8 @@
+<!-- Loads wherever the Groovy plugin does: the local IDE, or the backend in split mode. -->
 <idea-plugin>
+    <dependencies>
+        <plugin id="org.intellij.groovy"/>
+    </dependencies>
     <extensions defaultExtensionNs="com.intellij">
         <!-- Adds these names to the existing Groovy file type, so Code mode is highlighted. -->
         <fileType name="Groovy" fileNames="Jenkinsfile" patterns="*.Jenkinsfile;Jenkinsfile.*"/>
