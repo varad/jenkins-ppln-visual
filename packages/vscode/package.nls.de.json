@@ -1,0 +1,8 @@
+{
+  "description": "Zeichnet die Stages eines deklarativen Jenkinsfiles neben seinem Code.",
+  "command.openPreview": "Pipeline-Vorschau öffnen",
+  "command.toggleWrap": "Diagrammumbruch umschalten",
+  "config.previewPosition": "Wo „Pipeline-Vorschau öffnen“ das Diagramm anzeigt.",
+  "config.previewPosition.below": "Unter dem Code, in voller Breite: Pipeline-Diagramme sind breit.",
+  "config.previewPosition.beside": "Rechts neben dem Code."
+}

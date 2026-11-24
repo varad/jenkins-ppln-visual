@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { canRename, displayName, indexStages, renameError, renameStage, type Pipeline, type PipelineLayout, type StageEdit } from '@jpv/core';
+import { canRename, displayName, indexStages, renameError, renameStage, translator, type Pipeline, type PipelineLayout, type StageEdit } from '@jpv/core';
+import { useLocale } from './i18n';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const XHTML_NS = 'http://www.w3.org/1999/xhtml';
@@ -22,8 +23,9 @@ interface Options {
  * The name box lives in a DOM-only overlay, like the drag markers, so toSvg output never contains it.
  */
 export function useStageRename({ container, layout, pipeline, source, onRename, onEditStart }: Options) {
-  const cb = useRef({ onRename, onEditStart });
-  cb.current = { onRename, onEditStart };
+  const locale = useLocale();
+  const cb = useRef({ onRename, onEditStart, locale });
+  cb.current = { onRename, onEditStart, locale };
 
   useEffect(() => {
     const svg = container?.querySelector('svg');
@@ -57,13 +59,13 @@ export function useStageRename({ container, layout, pipeline, source, onRename, 
       input.type = 'text';
       input.spellcheck = false;
       input.value = displayName(stage);
-      input.setAttribute('aria-label', 'Stage name');
+      input.setAttribute('aria-label', translator(cb.current.locale)('ui.stageName'));
       fo.append(input);
       // Keep the page's selection, hover and drag handlers out of the name box.
       for (const type of ['click', 'dblclick', 'pointerdown', 'mousedown', 'mouseover']) fo.addEventListener(type, (e) => e.stopPropagation());
 
       const validate = () => {
-        const err = input.value.trim() === displayName(stage) ? null : renameError(pipeline, id, input.value);
+        const err = input.value.trim() === displayName(stage) ? null : renameError(pipeline, id, input.value, cb.current.locale);
         input.classList.toggle('invalid', !!err);
         input.title = err ?? '';
         return err;

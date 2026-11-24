@@ -1,0 +1,8 @@
+{
+  "description": "Tegner fasene i en deklarativ Jenkinsfile ved siden av koden.",
+  "command.openPreview": "Åpne forhåndsvisning av pipeline",
+  "command.toggleWrap": "Slå bryting av diagram av/på",
+  "config.previewPosition": "Hvor «Åpne forhåndsvisning av pipeline» plasserer diagrammet.",
+  "config.previewPosition.below": "Under koden, i full bredde: pipeline-diagrammer er brede.",
+  "config.previewPosition.beside": "Til høyre for koden."
+}

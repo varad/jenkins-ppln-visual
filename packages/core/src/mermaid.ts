@@ -2,10 +2,13 @@
 
 import { MATRIX_EXPAND_LIMIT } from './declarative.js';
 import type { Pipeline, Stage } from './model.js';
+import type { GraphOptions } from './graph.js';
+import { translator } from './i18n/index.js';
 
 const esc = (s: string) => s.replace(/"/g, '#quot;').replace(/[<>]/g, (c) => (c === '<' ? '#lt;' : '#gt;'));
 
-export function toMermaid(p: Pipeline): string {
+export function toMermaid(p: Pipeline, options: GraphOptions = {}): string {
+  const tr = translator(options.locale ?? 'en');
   const lines: string[] = ['flowchart LR'];
   let n = 0;
   const next = () => `n${n++}`;
@@ -44,8 +47,8 @@ export function toMermaid(p: Pipeline): string {
         return id;
       case 'matrix': {
         const m = s.body.matrix;
-        lines.push(`${indent}subgraph ${id}["${esc(s.name)} (matrix, ${m.cells.length} cells)${tag}"]`, `${indent}  direction TB`);
-        const cells = m.cells.length <= MATRIX_EXPAND_LIMIT ? m.cells.map((c) => Object.values(c).join(' · ')) : [`each of ${m.cells.length} cells`];
+        lines.push(`${indent}subgraph ${id}["${esc(s.name)} (${tr('graph.mermaidMatrix', { n: m.cells.length })})${tag}"]`, `${indent}  direction TB`);
+        const cells = m.cells.length <= MATRIX_EXPAND_LIMIT ? m.cells.map((c) => Object.values(c).join(' · ')) : [tr('graph.eachCell', { n: m.cells.length })];
         for (const c of cells) {
           const cid = next();
           lines.push(`${indent}  ${cid}["${esc(c)}: ${esc(m.stages.map((x) => x.name).join(' → '))}"]`);
@@ -56,7 +59,7 @@ export function toMermaid(p: Pipeline): string {
     }
   }
 
-  lines.push('  start((Start))');
+  lines.push(`  start((${esc(tr('graph.start'))}))`);
   const { first, last } = sequence(p.stages, '  ');
   if (first) lines.push(`  start --> ${first}`);
   let tail = last ?? 'start';
@@ -65,7 +68,7 @@ export function toMermaid(p: Pipeline): string {
     lines.push(`  ${tail} -.-> post`);
     tail = 'post';
   }
-  lines.push('  finish((End))', `  ${tail} --> finish`);
+  lines.push(`  finish((${esc(tr('graph.end'))}))`, `  ${tail} --> finish`);
   if (conditional.length) {
     lines.push('  classDef when stroke-dasharray: 5 4');
     lines.push(`  class ${conditional.join(',')} when`);

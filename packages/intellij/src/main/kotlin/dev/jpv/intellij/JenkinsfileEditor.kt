@@ -114,9 +114,9 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
         get() = false
 
     override fun createViewActionGroup(): ActionGroup = DefaultActionGroup(
-        ModeAction("Code", AllIcons.General.LayoutEditorOnly, Layout.SHOW_EDITOR),
-        ModeAction("View", AllIcons.General.LayoutPreviewOnly, Layout.SHOW_PREVIEW),
-        ModeAction("Dual", AllIcons.General.LayoutEditorPreview, Layout.SHOW_EDITOR_AND_PREVIEW),
+        ModeAction(JpvBundle.message("action.code"), AllIcons.General.LayoutEditorOnly, Layout.SHOW_EDITOR),
+        ModeAction(JpvBundle.message("action.view"), AllIcons.General.LayoutPreviewOnly, Layout.SHOW_PREVIEW),
+        ModeAction(JpvBundle.message("action.dual"), AllIcons.General.LayoutEditorPreview, Layout.SHOW_EDITOR_AND_PREVIEW),
         Separator.getInstance(),
         WrapAction(),
     )
@@ -137,7 +137,7 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
     }
 
     private inner class WrapAction :
-        ToggleAction("Wrap", "Wrap the diagram to the window width", AllIcons.Actions.ToggleSoftWrap), DumbAware {
+        ToggleAction(JpvBundle.message("action.wrap"), JpvBundle.message("action.wrap.description"), AllIcons.Actions.ToggleSoftWrap), DumbAware {
 
         override fun getActionUpdateThread() = ActionUpdateThread.EDT
 

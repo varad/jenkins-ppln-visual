@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { applyEdit, buildGraph, layoutGraph, parseJenkinsfile, toMermaid, toSvg, type PipelineLayout, type SourceRange, type StageEdit, type TextEdit } from '@jpv/core';
+import { LOCALES, applyEdit, buildGraph, formatMessage, layoutGraph, parseJenkinsfile, toMermaid, toSvg, translator, type Locale, type PipelineLayout, type SourceRange, type StageEdit, type TextEdit } from '@jpv/core';
 import { Canvas } from './Canvas';
 import { Details } from './Details';
 import { Editor, type EditorHandle } from './Editor';
 import { SAMPLES } from './samples';
 import { indexStages, innermostStage } from './stages';
+import { LocaleContext, initialLocale, saveLocale } from './i18n';
 
 /** Host bridge, so IDE plugins (IntelliJ via JCEF, VS Code webview) can drive the viewer. */
 declare global {
@@ -65,10 +66,17 @@ export function App() {
   const [toast, setToast] = useState('');
   const [dragging, setDragging] = useState(false);
   const [wrap, setWrap] = useState(readWrap);
+  const [locale, setLocale] = useState<Locale>(initialLocale);
+  const tr = useMemo(() => translator(locale), [locale]);
   const editor = useRef<EditorHandle | null>(null);
   /** Source offset of a stage just moved or renamed in the diagram, to select once the new text is parsed. */
   const movedTo = useRef<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.title = tr('ui.title');
+  }, [locale, tr]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(source), 250);
@@ -77,6 +85,8 @@ export function App() {
 
   const result = useMemo(() => parseJenkinsfile(debounced), [debounced]);
   const stages = useMemo(() => indexStages(result.pipeline?.stages ?? []), [result]);
+  /** The diagnostics with their messages in the viewer's language. */
+  const diagnostics = useMemo(() => result.diagnostics.map((d) => ({ ...d, message: formatMessage(d, locale) })), [result, locale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,13 +94,13 @@ export function App() {
       setLayout(null);
       return;
     }
-    layoutGraph(buildGraph(result.pipeline))
+    layoutGraph(buildGraph(result.pipeline, { locale }))
       .then((l) => !cancelled && setLayout(l))
       .catch((e) => console.error(e));
     return () => {
       cancelled = true;
     };
-  }, [result]);
+  }, [result, locale]);
 
   useEffect(() => {
     if (selected && !stages.has(selected)) setSelected(undefined);
@@ -162,6 +172,7 @@ export function App() {
   const base = fileName.replace(/\.[^.]*$/, '') || 'Jenkinsfile';
 
   return (
+    <LocaleContext.Provider value={locale}>
     <div
       className={`app ${dragging ? 'dragging' : ''}`}
       onDragOver={(e) => {
@@ -184,10 +195,10 @@ export function App() {
             <rect x="7" y="12" width="6" height="5" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
             <circle cx="17" cy="10" r="2.5" fill="currentColor" />
           </svg>
-          Jenkinsfile Visualizer
+          {tr('ui.title')}
         </div>
         <label className="sample">
-          Sample
+          {tr('ui.sample')}
           <select
             value={sampleName}
             onChange={(e) => {
@@ -196,7 +207,7 @@ export function App() {
               if (s) loadText(s.text, s.name.split('/').pop()!);
             }}
           >
-            <option value="">(your file)</option>
+            <option value="">{tr('ui.yourFile')}</option>
             {SAMPLES.map((s) => (
               <option key={s.name} value={s.name}>
                 {s.name}
@@ -204,13 +215,13 @@ export function App() {
             ))}
           </select>
         </label>
-        <button onClick={() => fileInput.current?.click()}>Open file…</button>
+        <button onClick={() => fileInput.current?.click()}>{tr('ui.openFile')}</button>
         <input ref={fileInput} type="file" hidden onChange={(e) => e.target.files?.[0] && openFile(e.target.files[0])} />
         <span className="spacer" />
         <span className={`status ${errors ? 'err' : warnings ? 'warn' : 'ok'}`}>
-          {result.kind === 'scripted' ? 'Scripted pipeline' : errors ? `${errors} error${errors > 1 ? 's' : ''}` : warnings ? `${warnings} warning${warnings > 1 ? 's' : ''}` : `${stages.size} stages`}
+          {result.kind === 'scripted' ? tr('ui.scripted') : errors ? tr('ui.errors', { n: errors }) : warnings ? tr('ui.warnings', { n: warnings }) : tr('ui.stages', { n: stages.size })}
         </span>
-        <label className="sample" title="Wrap the diagram to the width of the preview">
+        <label className="sample" title={tr('ui.wrapTitle')}>
           <input
             type="checkbox"
             checked={wrap}
@@ -219,36 +230,54 @@ export function App() {
               saveWrap(e.target.checked);
             }}
           />
-          Wrap
+          {tr('ui.wrap')}
         </label>
         <button
           disabled={!result.pipeline}
           onClick={async () => {
-            const mm = toMermaid(result.pipeline!);
+            const mm = toMermaid(result.pipeline!, { locale });
             try {
               await navigator.clipboard.writeText('```mermaid\n' + mm + '```\n');
-              flash('Mermaid copied to clipboard');
+              flash(tr('ui.mermaidCopied'));
             } catch {
               download(`${base}.mmd`, mm, 'text/plain');
             }
           }}
         >
-          Copy Mermaid
+          {tr('ui.copyMermaid')}
         </button>
         <button disabled={!layout} onClick={() => layout && download(`${base}.svg`, toSvg(layout), 'image/svg+xml')}>
-          Download SVG
+          {tr('ui.downloadSvg')}
         </button>
+        <label className="sample">
+          <select
+            value={locale}
+            title={tr('ui.language')}
+            aria-label={tr('ui.language')}
+            onChange={(e) => {
+              const l = e.target.value as Locale;
+              setLocale(l);
+              saveLocale(l);
+            }}
+          >
+            {LOCALES.map((l) => (
+              <option key={l.code} value={l.code} lang={l.code}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
 
       <main className="panes">
         <section className="pane-editor">
-          <Editor value={source} onChange={setSource} onCursor={onCursor} diagnostics={result.diagnostics} highlight={selectedStage?.loc} handleRef={editor} />
-          {result.diagnostics.length > 0 && (
+          <Editor value={source} onChange={setSource} onCursor={onCursor} diagnostics={diagnostics} highlight={selectedStage?.loc} handleRef={editor} />
+          {diagnostics.length > 0 && (
             <ul className="diagnostics">
-              {result.diagnostics.map((d, i) => (
+              {diagnostics.map((d, i) => (
                 <li key={i} className={d.severity} onClick={() => reveal(d.loc)}>
-                  <span className="sev">{d.severity}</span>
-                  <span className="ln">L{d.loc.line}</span>
+                  <span className="sev">{tr(`ui.severity.${d.severity}`)}</span>
+                  <span className="ln">{tr('ui.lineShort', { line: d.loc.line })}</span>
                   {d.message}
                 </li>
               ))}
@@ -268,12 +297,8 @@ export function App() {
             />
           ) : (
             <div className="empty">
-              <h2>{result.kind === 'scripted' ? 'This is a scripted pipeline' : 'No declarative pipeline found'}</h2>
-              <p>
-                {result.kind === 'scripted'
-                  ? 'Scripted pipelines (node { … }) are plain Groovy programs, so their stages are only known when they run. Only declarative pipelines (pipeline { … }) can be drawn.'
-                  : 'Paste a Jenkinsfile that starts with pipeline { … }, open a file, or drop one here.'}
-              </p>
+              <h2>{result.kind === 'scripted' ? tr('ui.scriptedTitle') : tr('ui.noneTitle')}</h2>
+              <p>{result.kind === 'scripted' ? tr('ui.scriptedBody') : tr('ui.noneBody')}</p>
             </div>
           )}
         </section>
@@ -282,7 +307,8 @@ export function App() {
         </aside>
       </main>
       {toast && <div className="toast">{toast}</div>}
-      {dragging && <div className="drop">Drop a Jenkinsfile to visualize it</div>}
+      {dragging && <div className="drop">{tr('ui.dropHint')}</div>}
     </div>
+    </LocaleContext.Provider>
   );
 }

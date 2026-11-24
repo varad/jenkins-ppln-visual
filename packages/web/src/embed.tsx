@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
-import { applyEdit, parseJenkinsfile, toSvg, type StageEdit } from '@jpv/core';
+import { applyEdit, parseJenkinsfile, resolveLocale, toSvg, translator, type Locale, type StageEdit } from '@jpv/core';
+import { LocaleContext } from './i18n';
 import { indexStages, innermostStage } from './stages';
 import { RELEASE_POINTER, useStageDrag } from './useStageDrag';
 import { useStageRename } from './useStageRename';
@@ -17,6 +18,8 @@ declare global {
       setTheme: (dark: boolean, background: string) => void;
       setWrap: (wrap: boolean) => void;
       setCaret: (offset: number | null) => void;
+      /** The IDE's language, as a BCP 47 tag such as `de` or `pt-BR`; unsupported ones fall back to English. */
+      setLocale: (tag: string) => void;
       /**
        * The host saw the mouse button go up while the page was still dragging a stage: the page missed the release
        * (an IDE popup took it, say). `drop` when it was let go over the diagram, so the drag drops; otherwise it is cancelled.
@@ -30,6 +33,7 @@ let source: string | null = null;
 let version = 0;
 let wrap = true;
 let caret: number | null = null;
+let locale: Locale = resolveLocale(navigator.language);
 const listeners = new Set<() => void>();
 
 // Defined at module scope so it exists by the time the host sees the page's load event.
@@ -49,6 +53,11 @@ window.jpvView = {
   },
   setCaret(offset) {
     caret = offset;
+    listeners.forEach((l) => l());
+  },
+  setLocale(tag) {
+    locale = resolveLocale(tag);
+    document.documentElement.lang = locale;
     listeners.forEach((l) => l());
   },
   releasePointer(drop) {
@@ -84,7 +93,17 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+function Root() {
+  const current = useSyncExternalStore(subscribe, () => locale);
+  return (
+    <LocaleContext.Provider value={current}>
+      <Viewer />
+    </LocaleContext.Provider>
+  );
+}
+
 function Viewer() {
+  const tr = translator(useSyncExternalStore(subscribe, () => locale));
   const text = useSyncExternalStore(subscribe, () => source);
   const result = useMemo(() => parseJenkinsfile(text ?? ''), [text]);
   const wrapped = useSyncExternalStore(subscribe, () => wrap);
@@ -94,8 +113,8 @@ function Viewer() {
     layout,
     pipeline: result.pipeline,
     source: text ?? '',
-    onMove: (m) => applyStageEdit(m, 'Move Stage'),
-    onRemove: (m) => applyStageEdit(m, 'Remove Stage'),
+    onMove: (m) => applyStageEdit(m, tr('ui.undoMove')),
+    onRemove: (m) => applyStageEdit(m, tr('ui.undoRemove')),
     onDragChange: (d) => {
       dragging = d;
       reportCursor(d ? 'grabbing' : 'default');
@@ -106,7 +125,7 @@ function Viewer() {
     layout,
     pipeline: result.pipeline,
     source: text ?? '',
-    onRename: (m) => applyStageEdit(m, 'Rename Stage'),
+    onRename: (m) => applyStageEdit(m, tr('ui.undoRename')),
     // The clicks before a double-click hand focus to the IDE's text editor; take it back for typing.
     onEditStart: () => window.jpvHost?.onFocus?.(),
   });
@@ -125,12 +144,8 @@ function Viewer() {
   if (!result.pipeline) {
     return (
       <div className="empty">
-        <h2>{result.kind === 'scripted' ? 'This is a scripted pipeline' : 'No declarative pipeline found'}</h2>
-        <p>
-          {result.kind === 'scripted'
-            ? 'Scripted pipelines (node { … }) are plain Groovy programs, so their stages are only known when they run. Only declarative pipelines (pipeline { … }) can be drawn.'
-            : 'Only files with a declarative pipeline { … } block can be drawn.'}
-        </p>
+        <h2>{result.kind === 'scripted' ? tr('ui.scriptedTitle') : tr('ui.noneTitle')}</h2>
+        <p>{result.kind === 'scripted' ? tr('ui.scriptedBody') : tr('ui.noneBodyEmbed')}</p>
       </div>
     );
   }
@@ -163,4 +178,4 @@ function Viewer() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<Viewer />);
+createRoot(document.getElementById('root')!).render(<Root />);

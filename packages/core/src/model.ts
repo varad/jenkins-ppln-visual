@@ -2,6 +2,8 @@
 // (https://www.jenkins.io/doc/book/pipeline/syntax/) and stay close to what
 // Jenkins' own pipeline-model-converter emits, so a converter adapter is easy later.
 
+import type { MessageKey, MessageParams } from './i18n/index.js';
+
 export interface SourceRange {
   start: number;
   end: number;
@@ -11,6 +13,10 @@ export interface SourceRange {
 }
 
 export interface Diagnostic {
+  /** Identifies the message; format it in any locale with `formatMessage(d, locale)`. */
+  code: MessageKey;
+  params?: MessageParams;
+  /** The message in English. */
   message: string;
   severity: 'error' | 'warning' | 'info';
   loc: SourceRange;
@@ -86,7 +92,8 @@ export interface Post {
 }
 
 export interface Input {
-  message: string;
+  /** The `message` the input step shows, if it gives one. */
+  message?: string;
   raw: string;
   loc: SourceRange;
 }

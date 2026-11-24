@@ -262,7 +262,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
         val valid = text != null && edit.version == document.modificationStamp && document.isWritable &&
             edit.start in 0..edit.end && edit.end <= document.textLength
         if (valid) {
-            WriteCommandAction.runWriteCommandAction(project, edit.label ?: "Move Stage", null, {
+            WriteCommandAction.runWriteCommandAction(project, edit.label ?: JpvBundle.message("undo.moveStage"), null, {
                 document.replaceString(edit.start, edit.end, text!!)
             })
             if (edit.select >= 0) onStageClick?.invoke(edit.select) // a removal has nothing to select
@@ -279,7 +279,8 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
     private fun render() {
         if (!pageLoaded) return
         val background = "#" + ColorUtil.toHex(UIUtil.getPanelBackground())
-        val script = "window.jpvView.setTheme(${!JBColor.isBright()}, '$background');" +
+        val script = "window.jpvView.setLocale(${gson.toJson(JpvBundle.locale.toLanguageTag())});" +
+            "window.jpvView.setTheme(${!JBColor.isBright()}, '$background');" +
             "window.jpvView.setWrap($wrapDiagram);" +
             "window.jpvView.setCaret($caretOffset);" +
             "window.jpvView.setSource(${gson.toJson(document.text)}, ${document.modificationStamp});"
@@ -288,7 +289,7 @@ class PipelinePreview(private val project: Project, private val file: VirtualFil
 
     override fun getComponent(): JComponent = browser.component
     override fun getPreferredFocusedComponent(): JComponent = browser.component
-    override fun getName() = "View"
+    override fun getName() = JpvBundle.message("action.view")
     override fun getFile() = file
     override fun setState(state: FileEditorState) = Unit
     override fun isModified() = false

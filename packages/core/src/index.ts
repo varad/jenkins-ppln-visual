@@ -6,3 +6,4 @@ export * from './graph.js';
 export { toMermaid } from './mermaid.js';
 export { toSvg } from './svg.js';
 export * from './edit.js';
+export * from './i18n/index.js';

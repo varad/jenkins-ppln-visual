@@ -20,6 +20,7 @@ import type {
   When,
 } from './model.js';
 import { POST_CONDITIONS } from './model.js';
+import { msg, type MessageKey, type MessageParams } from './i18n/index.js';
 
 const PIPELINE_SECTIONS = new Set(['agent', 'environment', 'options', 'parameters', 'triggers', 'tools', 'libraries', 'stages', 'post', 'input']);
 const STAGE_SECTIONS = new Set(['agent', 'when', 'input', 'environment', 'options', 'tools', 'post', 'failFast', 'steps', 'stages', 'parallel', 'matrix']);
@@ -71,8 +72,8 @@ class Interpreter {
     return s.closure?.closed ? this.range(s.closure.start, s.closure.end) : undefined;
   }
 
-  report(severity: Diagnostic['severity'], message: string, loc: SourceRange) {
-    this.diagnostics.push({ severity, message, loc });
+  report(severity: Diagnostic['severity'], code: MessageKey, params: MessageParams | undefined, loc: SourceRange) {
+    this.diagnostics.push({ severity, ...msg(code, params), loc });
   }
 
   text(s: Statement): string {
@@ -93,7 +94,7 @@ class Interpreter {
 
   run(): ParseResult {
     const cst = parseCst(this.src);
-    for (const issue of cst.issues) this.report(issue.severity, issue.message, this.range(issue.start, issue.end));
+    for (const issue of cst.issues) this.report(issue.severity, issue.code, issue.params, this.range(issue.start, issue.end));
 
     const top = cst.root.statements;
     const pipelineStmt = top.find((s) => stmtName(s) === 'pipeline' && s.closure);
@@ -105,13 +106,13 @@ class Interpreter {
       const scripted = top.some((s) => ['node', 'stage', 'parallel', 'timestamps', 'podTemplate'].includes(stmtName(s) ?? ''));
       const where = top[0] ? this.loc(top[0]) : this.range(0, 0);
       if (scripted) {
-        this.report('error', 'This looks like a scripted pipeline (node { ... }). Only declarative pipelines (pipeline { ... }) can be visualized.', where);
+        this.report('error', 'diag.scripted', undefined, where);
         return { kind: 'scripted', diagnostics: this.diagnostics, preamble };
       }
-      this.report('error', 'No pipeline { ... } block found.', where);
+      this.report('error', 'diag.noPipeline', undefined, where);
       return { kind: 'unknown', diagnostics: this.diagnostics, preamble };
     }
-    if (top.filter((s) => stmtName(s) === 'pipeline').length > 1) this.report('error', 'Only one pipeline block is allowed.', this.loc(pipelineStmt));
+    if (top.filter((s) => stmtName(s) === 'pipeline').length > 1) this.report('error', 'diag.multiplePipelines', undefined, this.loc(pipelineStmt));
 
     return { kind: 'declarative', pipeline: this.pipeline(pipelineStmt), diagnostics: this.diagnostics, preamble };
   }
@@ -124,7 +125,7 @@ class Interpreter {
     for (const d of s.closure!.statements) {
       const name = stmtName(d) ?? '';
       if (!PIPELINE_SECTIONS.has(name)) {
-        this.report('warning', `Unknown section '${name || this.oneLine(this.text(d), 30)}' in pipeline.`, this.headLoc(d));
+        this.report('warning', 'diag.unknownSection', { name: name || this.oneLine(this.text(d), 30) }, this.headLoc(d));
         continue;
       }
       switch (name) {
@@ -158,12 +159,12 @@ class Interpreter {
           p.post = this.post(d);
           break;
         case 'input':
-          this.report('warning', 'input is only allowed inside a stage.', this.headLoc(d));
+          this.report('warning', 'diag.inputOutsideStage', undefined, this.headLoc(d));
           break;
       }
     }
-    if (!p.agent) this.report('warning', 'The pipeline has no top-level agent. Declarative pipelines require one (use agent none to set it per stage).', this.headLoc(s));
-    if (!sawStages) this.report('error', 'The pipeline has no stages section.', this.headLoc(s));
+    if (!p.agent) this.report('warning', 'diag.noAgent', undefined, this.headLoc(s));
+    if (!sawStages) this.report('error', 'diag.noStages', undefined, this.headLoc(s));
     return p;
   }
 
@@ -244,18 +245,18 @@ class Interpreter {
 
   stages(s: Statement, path: string, nestedInParallel: boolean): Stage[] {
     if (!s.closure) {
-      this.report('error', `${stmtName(s)} needs a { ... } block.`, this.headLoc(s));
+      this.report('error', 'diag.needsBlock', { name: String(stmtName(s)) }, this.headLoc(s));
       return [];
     }
     const out: Stage[] = [];
     for (const d of s.closure.statements) {
       if (stmtName(d) !== 'stage') {
-        this.report('error', `Only stage(...) blocks are allowed here, found '${this.oneLine(this.headText(d) || this.text(d), 40)}'.`, this.headLoc(d));
+        this.report('error', 'diag.onlyStagesAllowed', { found: this.oneLine(this.headText(d) || this.text(d), 40) }, this.headLoc(d));
         continue;
       }
       out.push(this.stage(d, path, nestedInParallel));
     }
-    if (out.length === 0) this.report('warning', `${stmtName(s)} has no stages.`, this.headLoc(s));
+    if (out.length === 0) this.report('warning', 'diag.emptyStages', { name: String(stmtName(s)) }, this.headLoc(s));
     return out;
   }
 
@@ -273,10 +274,10 @@ class Interpreter {
   stage(s: Statement, path: string, nestedInParallel: boolean, inMatrix = false): Stage {
     const nameTok = stmtArgValues(s)[0];
     const name = nameTok ? tokenValue(nameTok) : '(unnamed)';
-    if (!nameTok) this.report('error', 'stage needs a name: stage(\'Name\') { ... }', this.headLoc(s));
+    if (!nameTok) this.report('error', 'diag.stageNeedsName', undefined, this.headLoc(s));
     if (!inMatrix) {
       const seen = this.stageNames.get(name) ?? 0;
-      if (seen > 0) this.report('error', `Duplicate stage name '${name}'. Stage names must be unique.`, this.headLoc(s));
+      if (seen > 0) this.report('error', 'diag.duplicateStage', { name }, this.headLoc(s));
       this.stageNames.set(name, seen + 1);
     }
     const stage: Stage = {
@@ -289,15 +290,15 @@ class Interpreter {
       headerLoc: this.headLoc(s),
     };
     if (!s.closure) {
-      this.report('error', `stage '${name}' needs a { ... } block.`, this.headLoc(s));
+      this.report('error', 'diag.stageNeedsBlock', { name }, this.headLoc(s));
       return stage;
     }
     const bodies: Statement[] = [];
     for (const d of s.closure.statements) {
       const dn = stmtName(d) ?? '';
       if (!STAGE_SECTIONS.has(dn)) {
-        const hint = dn === 'stage' ? " Wrap nested stages in a stages { } or parallel { } block (or a '}' is missing above)." : '';
-        this.report('error', `'${this.oneLine(this.headText(d) || this.text(d), 40)}' is not allowed directly in stage '${name}'.${hint}`, this.headLoc(d));
+        const found = this.oneLine(this.headText(d) || this.text(d), 40);
+        this.report('error', dn === 'stage' ? 'diag.nestedStageHint' : 'diag.notAllowedInStage', { found, name }, this.headLoc(d));
         continue;
       }
       switch (dn) {
@@ -330,10 +331,10 @@ class Interpreter {
       }
     }
     if (bodies.length === 0) {
-      this.report('error', `stage '${name}' must contain one of steps, stages, parallel or matrix.`, stage.headerLoc);
+      this.report('error', 'diag.stageNoBody', { name }, stage.headerLoc);
     } else {
       if (bodies.length > 1) {
-        this.report('error', `stage '${name}' must contain exactly one of steps, stages, parallel or matrix (found ${bodies.map((b) => stmtName(b)).join(', ')}).`, stage.headerLoc);
+        this.report('error', 'diag.stageManyBodies', { name, found: bodies.map((b) => stmtName(b)).join(', ') }, stage.headerLoc);
       }
       stage.body = this.body(bodies[0], stage, nestedInParallel);
     }
@@ -343,15 +344,15 @@ class Interpreter {
   body(d: Statement, stage: Stage, nestedInParallel: boolean): StageBody {
     const kind = stmtName(d) as (typeof BODY_KINDS)[number];
     if ((kind === 'parallel' || kind === 'matrix') && nestedInParallel) {
-      this.report('error', `${kind} cannot be used inside a stage that is already within a parallel or matrix block.`, this.headLoc(d));
+      this.report('error', 'diag.nestedParallel', { kind }, this.headLoc(d));
     }
     switch (kind) {
       case 'steps':
         if (!d.closure) {
-          this.report('error', 'steps needs a { ... } block.', this.headLoc(d));
+          this.report('error', 'diag.needsBlock', { name: 'steps' }, this.headLoc(d));
           return { kind: 'steps', steps: [] };
         }
-        if (d.closure.statements.length === 0) this.report('warning', `stage '${stage.name}' has empty steps.`, this.headLoc(d));
+        if (d.closure.statements.length === 0) this.report('warning', 'diag.emptySteps', { name: stage.name }, this.headLoc(d));
         return { kind: 'steps', steps: this.steps(d.closure) };
       case 'stages':
         return { kind: 'stages', stages: this.stages(d, stage.id, nestedInParallel), block: this.blockLoc(d) };
@@ -389,7 +390,7 @@ class Interpreter {
       }
       w.conditions.push(this.condition(d));
     }
-    if (w.conditions.length === 0) this.report('warning', 'when has no conditions.', this.headLoc(s));
+    if (w.conditions.length === 0) this.report('warning', 'diag.whenNoConditions', undefined, this.headLoc(s));
     w.summary = w.conditions.map((c) => (w.conditions.length > 1 && c.children ? `(${c.summary})` : c.summary)).join(' and ');
     return w;
   }
@@ -412,13 +413,13 @@ class Interpreter {
   input(s: Statement): Input {
     const msgStmt = s.closure?.statements.find((d) => stmtName(d) === 'message');
     const v = msgStmt ? stmtArgValues(msgStmt)[0] : stmtArgValues(s)[0];
-    return { message: v ? tokenValue(v) : 'Input requested', raw: this.text(s), loc: this.loc(s) };
+    return { message: v ? tokenValue(v) : undefined, raw: this.text(s), loc: this.loc(s) };
   }
 
   post(s: Statement): Post {
     const conditions = (s.closure?.statements ?? []).map((d) => {
       const condition = stmtName(d) ?? '?';
-      if (!(POST_CONDITIONS as readonly string[]).includes(condition)) this.report('warning', `Unknown post condition '${condition}'.`, this.headLoc(d));
+      if (!(POST_CONDITIONS as readonly string[]).includes(condition)) this.report('warning', 'diag.unknownPost', { name: condition }, this.headLoc(d));
       return { condition, steps: d.closure ? this.steps(d.closure) : [], loc: this.loc(d) };
     });
     return { conditions, loc: this.loc(s) };
@@ -441,7 +442,7 @@ class Interpreter {
     for (const d of s.closure?.statements ?? []) {
       const n = stmtName(d) ?? '';
       if (!MATRIX_SECTIONS.has(n)) {
-        this.report('error', `'${this.oneLine(this.headText(d) || this.text(d), 40)}' is not allowed in matrix.`, this.headLoc(d));
+        this.report('error', 'diag.notAllowedInMatrix', { found: this.oneLine(this.headText(d) || this.text(d), 40) }, this.headLoc(d));
         continue;
       }
       switch (n) {
@@ -478,8 +479,8 @@ class Interpreter {
           break;
       }
     }
-    if (m.axes.length === 0) this.report('error', 'matrix needs an axes block with at least one axis.', this.headLoc(s));
-    if (m.stages.length === 0) this.report('error', 'matrix needs a stages block.', this.headLoc(s));
+    if (m.axes.length === 0) this.report('error', 'diag.matrixNoAxes', undefined, this.headLoc(s));
+    if (m.stages.length === 0) this.report('error', 'diag.matrixNoStages', undefined, this.headLoc(s));
     m.cells = matrixCells(m.axes, m.excludes);
     return m;
   }

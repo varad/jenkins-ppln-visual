@@ -40,7 +40,7 @@ export class PipelinePreview {
   ) {
     this.panel = vscode.window.createWebviewPanel(
       VIEW_TYPE,
-      `Pipeline: ${document.uri.path.split('/').pop()}`,
+      vscode.l10n.t('Pipeline: {0}', document.uri.path.split('/').pop() ?? ''),
       showOptions,
       { enableScripts: true, localResourceRoots: [] },
     );
@@ -157,6 +157,7 @@ export class PipelinePreview {
     if (!this.pageReady) return;
     const editor = this.editor();
     const post = (m: object) => void this.panel.webview.postMessage(m);
+    post({ type: 'setLocale', locale: vscode.env.language });
     post({ type: 'setWrap', wrap: this.host.wrap() });
     post({ type: 'setCaret', offset: editor ? this.document.offsetAt(editor.selection.active) : null });
     post({ type: 'setSource', text: this.document.getText(), version: this.document.version });

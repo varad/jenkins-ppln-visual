@@ -57,7 +57,8 @@ cd packages/intellij
 ```
 
 It shows `packages/web/embed.html`, a diagram-only page driven through
-`window.jpvView.setSource(text)` and `window.jpvView.setTheme(dark, background)`.
+`window.jpvView.setSource(text)`, `window.jpvView.setTheme(dark, background)` and
+`window.jpvView.setLocale(tag)`.
 In Dual view, clicking a stage or the post node moves the caret to it in the code,
 and placing the caret inside a stage in the code rings that stage in the diagram.
 
@@ -82,3 +83,22 @@ described below. It does nothing outside VS Code.
 The page exposes `window.jpv.setSource(text)` and calls
 `window.jpvHost.onSelect(range)` when a stage or step is clicked, so an
 IntelliJ (JCEF) or VS Code webview can drive it.
+
+## Languages
+
+The viewer, the diagram, the parser's messages and both IDE plugins are available in English, Czech,
+Danish, Finnish, French, German, Norwegian (Bokmål), Polish, Slovak, Spanish and Swedish.
+The web app follows the browser's language. You can override it with the picker in the toolbar or with
+`?lang=de`. VS Code follows its display language. IntelliJ follows its language pack, or the operating
+system's language when the IDE is in English. Unsupported languages fall back to English.
+Jenkins syntax such as `steps`, `parallel`, `when` and `post` is never translated.
+
+The translations were drafted by machine and need review by native speakers. Corrections are welcome.
+
+To add a language:
+
+1. Copy `packages/core/src/i18n/en.ts` to `<code>.ts`, translate it, and list it in `CATALOGS` and
+   `LOCALES` in `packages/core/src/i18n/index.ts`. A plural message needs every form its language uses
+   (`one`, `few`, `many`, `other`), and `pnpm test` checks this along with the keys and placeholders.
+2. VS Code: add `packages/vscode/package.nls.<code>.json` and `packages/vscode/l10n/bundle.l10n.<code>.json`.
+3. IntelliJ: add `packages/intellij/src/main/resources/messages/JpvBundle_<code>.properties`.

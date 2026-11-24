@@ -1,0 +1,8 @@
+{
+  "description": "Kreslí fáze deklarativního Jenkinsfile vedle jeho kódu.",
+  "command.openPreview": "Otevřít náhled pipeline",
+  "command.toggleWrap": "Přepnout zalamování diagramu",
+  "config.previewPosition": "Kam „Otevřít náhled pipeline“ umístí diagram.",
+  "config.previewPosition.below": "Pod kódem, přes celou šířku: diagramy pipeline jsou široké.",
+  "config.previewPosition.beside": "Vpravo od kódu."
+}
