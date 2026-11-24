@@ -10,7 +10,8 @@ declare global {
 type ViewMessage =
   | { type: 'setSource'; text: string; version: number }
   | { type: 'setWrap'; wrap: boolean }
-  | { type: 'setCaret'; offset: number | null };
+  | { type: 'setCaret'; offset: number | null }
+  | { type: 'setLocale'; locale: string };
 
 if (typeof acquireVsCodeApi === 'function') {
   const vscode = acquireVsCodeApi();
@@ -29,6 +30,7 @@ if (typeof acquireVsCodeApi === 'function') {
     if (m.type === 'setSource') window.jpvView.setSource(m.text, m.version);
     else if (m.type === 'setWrap') window.jpvView.setWrap(m.wrap);
     else if (m.type === 'setCaret') window.jpvView.setCaret(m.offset);
+    else if (m.type === 'setLocale') window.jpvView.setLocale(m.locale);
   });
 
   /** VS Code marks the theme with a class on body and exposes its colours as CSS variables. */

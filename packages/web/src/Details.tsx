@@ -1,4 +1,5 @@
 import type { Agent, Call, Condition, KV, ParseResult, Post, SourceRange, Stage, Step, When } from '@jpv/core';
+import { useT } from './i18n';
 
 interface Props {
   result: ParseResult;
@@ -16,8 +17,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function AgentView({ a }: { a: Agent }) {
+  const tr = useT();
   return (
-    <Section title="Agent">
+    <Section title={tr('details.agent')}>
       <code>{a.summary}</code>
     </Section>
   );
@@ -75,26 +77,28 @@ function ConditionTree({ c }: { c: Condition }) {
 }
 
 function WhenView({ w }: { w: When }) {
+  const tr = useT();
   const flags = (['beforeAgent', 'beforeInput', 'beforeOptions'] as const).filter((f) => w[f]);
   return (
-    <Section title="Runs only when">
+    <Section title={tr('details.when')}>
       <ul className="conds">
         {w.conditions.map((c, i) => (
           <ConditionTree key={i} c={c} />
         ))}
       </ul>
-      {flags.length > 0 && <p className="muted">Evaluated {flags.join(', ').replace(/before/g, 'before ').toLowerCase()}.</p>}
-      <p className="muted">Conditions are evaluated by Jenkins at run time; they are shown, not evaluated, here.</p>
+      {flags.length > 0 && <p className="muted">{tr('details.evaluated', { flags: flags.map((f) => tr(`details.${f}`)).join(', ') })}</p>}
+      <p className="muted">{tr('details.whenNote')}</p>
     </Section>
   );
 }
 
 function Steps({ steps, onReveal }: { steps: Step[]; onReveal: Props['onReveal'] }) {
+  const tr = useT();
   return (
     <ol className="steps">
       {steps.map((s, i) => (
         <li key={i} className={s.dynamic ? 'dynamic' : undefined}>
-          <button className="link" onClick={() => onReveal(s.loc)} title={s.dynamic ? 'Imperative Groovy: shown, not evaluated' : undefined}>
+          <button className="link" onClick={() => onReveal(s.loc)} title={s.dynamic ? tr('details.dynamicStep') : undefined}>
             <code>{s.summary}</code>
           </button>
           {s.children && s.children.length > 0 && <Steps steps={s.children} onReveal={onReveal} />}
@@ -105,8 +109,9 @@ function Steps({ steps, onReveal }: { steps: Step[]; onReveal: Props['onReveal']
 }
 
 function PostView({ p, onReveal }: { p: Post; onReveal: Props['onReveal'] }) {
+  const tr = useT();
   return (
-    <Section title="Post">
+    <Section title={tr('details.post')}>
       {p.conditions.map((c, i) => (
         <div key={i} className="post-cond">
           <span className={`badge badge-post-${c.condition}`}>{c.condition}</span>
@@ -118,6 +123,7 @@ function PostView({ p, onReveal }: { p: Post; onReveal: Props['onReveal'] }) {
 }
 
 export function Details({ result, stage, onReveal }: Props) {
+  const tr = useT();
   if (stage) {
     const b = stage.body;
     return (
@@ -128,27 +134,27 @@ export function Details({ result, stage, onReveal }: Props) {
           </button>
         </h2>
         <p className="muted">
-          {b.kind === 'steps' ? `${b.steps.length} step${b.steps.length === 1 ? '' : 's'}` : b.kind} · line {stage.loc.line}
-          {stage.dynamicName && ' · name is interpolated at run time'}
+          {b.kind === 'steps' ? tr('graph.steps', { n: b.steps.length }) : b.kind} · {tr('details.line', { line: stage.loc.line })}
+          {stage.dynamicName && ` · ${tr('details.dynamicName')}`}
         </p>
         {stage.when && <WhenView w={stage.when} />}
         {stage.input && (
-          <Section title="Waits for input">
-            <p>{stage.input.message}</p>
+          <Section title={tr('details.input')}>
+            <p>{stage.input.message ?? tr('graph.inputDefault')}</p>
           </Section>
         )}
         {stage.agent && <AgentView a={stage.agent} />}
-        <KVs title="Environment" items={stage.environment} />
-        <Calls title="Options" items={stage.options} onReveal={onReveal} />
-        <KVs title="Tools" items={stage.tools} />
+        <KVs title={tr('details.environment')} items={stage.environment} />
+        <Calls title={tr('details.options')} items={stage.options} onReveal={onReveal} />
+        <KVs title={tr('details.tools')} items={stage.tools} />
         {b.kind === 'steps' && (
-          <Section title="Steps">
+          <Section title={tr('details.steps')}>
             <Steps steps={b.steps} onReveal={onReveal} />
           </Section>
         )}
         {b.kind === 'matrix' && (
           <>
-            <Section title="Matrix axes">
+            <Section title={tr('details.matrixAxes')}>
               <table className="kv">
                 <tbody>
                   {b.matrix.axes.map((a) => (
@@ -161,7 +167,7 @@ export function Details({ result, stage, onReveal }: Props) {
               </table>
               {b.matrix.excludes.length > 0 && (
                 <p className="muted">
-                  {b.matrix.excludes.length} exclude rule{b.matrix.excludes.length === 1 ? '' : 's'} → {b.matrix.cells.length} cells run.
+                  {tr('details.excludes', { n: b.matrix.excludes.length })} → {tr('details.cellsRun', { n: b.matrix.cells.length })}
                 </p>
               )}
             </Section>
@@ -178,21 +184,21 @@ export function Details({ result, stage, onReveal }: Props) {
   const p = result.pipeline;
   return (
     <div className="details">
-      <h2>Pipeline</h2>
-      {!p && <p className="muted">Nothing to show yet.</p>}
+      <h2>{tr('details.pipeline')}</h2>
+      {!p && <p className="muted">{tr('details.nothing')}</p>}
       {p && (
         <>
-          <p className="muted">Click a stage to see its details and jump to its source.</p>
+          <p className="muted">{tr('details.hint')}</p>
           {p.agent && <AgentView a={p.agent} />}
-          <Calls title="Parameters" items={p.parameters} onReveal={onReveal} />
-          <Calls title="Triggers" items={p.triggers} onReveal={onReveal} />
-          <KVs title="Environment" items={p.environment} />
-          <Calls title="Options" items={p.options} onReveal={onReveal} />
-          <KVs title="Tools" items={p.tools} />
+          <Calls title={tr('details.parameters')} items={p.parameters} onReveal={onReveal} />
+          <Calls title={tr('details.triggers')} items={p.triggers} onReveal={onReveal} />
+          <KVs title={tr('details.environment')} items={p.environment} />
+          <Calls title={tr('details.options')} items={p.options} onReveal={onReveal} />
+          <KVs title={tr('details.tools')} items={p.tools} />
           {p.post && <PostView p={p.post} onReveal={onReveal} />}
         </>
       )}
-      {result.preamble.length > 0 && <Calls title="Outside the pipeline block" items={result.preamble} onReveal={onReveal} />}
+      {result.preamble.length > 0 && <Calls title={tr('details.preamble')} items={result.preamble} onReveal={onReveal} />}
     </div>
   );
 }

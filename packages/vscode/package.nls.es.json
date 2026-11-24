@@ -1,0 +1,8 @@
+{
+  "description": "Dibuja las etapas de un Jenkinsfile declarativo junto a su código.",
+  "command.openPreview": "Abrir vista previa del pipeline",
+  "command.toggleWrap": "Alternar ajuste del diagrama",
+  "config.previewPosition": "Dónde coloca el diagrama «Abrir vista previa del pipeline».",
+  "config.previewPosition.below": "Debajo del código, a todo el ancho: los diagramas de pipeline son anchos.",
+  "config.previewPosition.beside": "A la derecha del código."
+}

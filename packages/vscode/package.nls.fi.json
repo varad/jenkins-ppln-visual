@@ -1,0 +1,8 @@
+{
+  "description": "Piirtää deklaratiivisen Jenkinsfilen vaiheet sen koodin viereen.",
+  "command.openPreview": "Avaa putken esikatselu",
+  "command.toggleWrap": "Vaihda kaavion rivitys",
+  "config.previewPosition": "Mihin \"Avaa putken esikatselu\" sijoittaa kaavion.",
+  "config.previewPosition.below": "Koodin alle koko leveydelle: putkikaaviot ovat leveitä.",
+  "config.previewPosition.beside": "Koodin oikealle puolelle."
+}

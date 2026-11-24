@@ -3,6 +3,8 @@
 // confuse the block parser. Everything else is reduced to identifiers, numbers
 // and punctuation.
 
+import { msg, type MessageRef } from './i18n/index.js';
+
 export type TokenKind = 'ident' | 'string' | 'number' | 'punct' | 'eof';
 
 export type StringStyle = 'single' | 'double' | 'triple-single' | 'triple-double' | 'slashy' | 'dollar-slashy';
@@ -24,7 +26,8 @@ export interface Token {
   nl: boolean;
 }
 
-export interface LexError {
+export interface LexError extends MessageRef {
+  /** English text; `code` and `params` give it in other locales. */
   message: string;
   start: number;
   end: number;
@@ -121,7 +124,7 @@ export function tokenize(src: string): { tokens: Token[]; errors: LexError[] } {
     if (c === '/' && src[i + 1] === '*') {
       const close = src.indexOf('*/', i + 2);
       const end = close < 0 ? src.length : close + 2;
-      if (close < 0) errors.push({ message: 'Unterminated block comment', start, end });
+      if (close < 0) errors.push({ ...msg('lex.unterminatedComment'), start, end });
       if (src.slice(i, end).includes('\n')) sawNewline = true;
       advanceLines(i, end);
       i = end;
@@ -155,7 +158,7 @@ export function tokenize(src: string): { tokens: Token[]; errors: LexError[] } {
         if (!triple && src[k] === '\n') break;
         k++;
       }
-      if (!closed) errors.push({ message: 'Unterminated string', start, end: k });
+      if (!closed) errors.push({ ...msg('lex.unterminatedString'), start, end: k });
       const style: StringStyle = triple ? (c === "'" ? 'triple-single' : 'triple-double') : c === "'" ? 'single' : 'double';
       push('string', start, k, { value: src.slice(start + q.length, closed ? k - q.length : k), style, interpolated });
       advanceLines(start, k);
@@ -165,7 +168,7 @@ export function tokenize(src: string): { tokens: Token[]; errors: LexError[] } {
     if (c === '$' && src[i + 1] === '/') {
       const close = src.indexOf('/$', i + 2);
       const end = close < 0 ? src.length : close + 2;
-      if (close < 0) errors.push({ message: 'Unterminated dollar-slashy string', start, end });
+      if (close < 0) errors.push({ ...msg('lex.unterminatedDollarSlashy'), start, end });
       const value = src.slice(i + 2, close < 0 ? end : close);
       push('string', start, end, { value, style: 'dollar-slashy', interpolated: value.includes('$') });
       advanceLines(start, end);

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { buildGraph, layoutGraph, type Pipeline, type PipelineLayout } from '@jpv/core';
+import { useLocale } from './i18n';
 
 /** With wrap on, lays the pipeline out to fit the element passed to setContainer, and again whenever it resizes. */
 export function useWrappedLayout(pipeline: Pipeline | null | undefined, wrap: boolean) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   const [layout, setLayout] = useState<PipelineLayout | null>(null);
+  const locale = useLocale();
 
   useEffect(() => {
     if (!container) return;
@@ -27,13 +29,13 @@ export function useWrappedLayout(pipeline: Pipeline | null | undefined, wrap: bo
     }
     if (maxWidth === 0) return; // not measured yet
     let cancelled = false;
-    layoutGraph(buildGraph(pipeline), { maxWidth })
+    layoutGraph(buildGraph(pipeline, { locale }), { maxWidth })
       .then((l) => !cancelled && setLayout(l))
       .catch((e) => console.error(e));
     return () => {
       cancelled = true;
     };
-  }, [pipeline, maxWidth]);
+  }, [pipeline, maxWidth, locale]);
 
   return { container, setContainer, layout };
 }

@@ -1,0 +1,8 @@
+{
+  "description": "Dessine les étapes d'un Jenkinsfile déclaratif à côté de son code.",
+  "command.openPreview": "Ouvrir l'aperçu du pipeline",
+  "command.toggleWrap": "Activer/désactiver le retour à la ligne du diagramme",
+  "config.previewPosition": "Où « Ouvrir l'aperçu du pipeline » place le diagramme.",
+  "config.previewPosition.below": "Sous le code, sur toute la largeur : les diagrammes de pipeline sont larges.",
+  "config.previewPosition.beside": "À droite du code."
+}

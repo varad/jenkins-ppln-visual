@@ -3,6 +3,12 @@
 
 import { MATRIX_EXPAND_LIMIT } from './declarative.js';
 import type { Pipeline, Stage } from './model.js';
+import { translator, type Locale, type Translate } from './i18n/index.js';
+
+export interface GraphOptions {
+  /** Language of the text the diagram adds itself (Start, End, step counts, tooltips). Default `en`. */
+  locale?: Locale;
+}
 
 export type GNodeKind = 'start' | 'end' | 'stage' | 'group' | 'fork' | 'join' | 'post';
 export type GroupKind = 'stages' | 'parallel' | 'matrix' | 'cell';
@@ -69,21 +75,21 @@ export interface PipelineLayout {
   height: number;
 }
 
-export function stageBadges(s: Stage): Badge[] {
+export function stageBadges(s: Stage, tr: Translate = translator('en')): Badge[] {
   const b: Badge[] = [];
   if (s.when) b.push({ kind: 'when', label: 'when', title: s.when.summary });
-  if (s.input) b.push({ kind: 'input', label: 'input', title: s.input.message });
+  if (s.input) b.push({ kind: 'input', label: 'input', title: s.input.message ?? tr('graph.inputDefault') });
   if (s.agent) b.push({ kind: 'agent', label: s.agent.summary, title: `agent ${s.agent.summary}` });
   const retry = s.options?.find((o) => o.name === 'retry');
   if (retry) b.push({ kind: 'retry', label: 'retry', title: retry.raw });
   const timeout = s.options?.find((o) => o.name === 'timeout');
   if (timeout) b.push({ kind: 'timeout', label: 'timeout', title: timeout.raw });
-  if (s.failFast) b.push({ kind: 'failFast', label: 'failFast', title: 'Stop other branches when one fails' });
+  if (s.failFast) b.push({ kind: 'failFast', label: 'failFast', title: tr('graph.failFast') });
   if (s.post) b.push({ kind: 'post', label: 'post', title: s.post.conditions.map((c) => c.condition).join(', ') });
   if (s.body.kind === 'steps') {
     const n = s.body.steps.length;
-    if (s.body.steps.some((st) => st.dynamic)) b.push({ kind: 'dynamic', label: 'script', title: 'Contains script { } blocks: imperative Groovy, shown but not evaluated' });
-    b.unshift({ kind: 'steps', label: `${n} step${n === 1 ? '' : 's'}` });
+    if (s.body.steps.some((st) => st.dynamic)) b.push({ kind: 'dynamic', label: 'script', title: tr('graph.script') });
+    b.unshift({ kind: 'steps', label: tr('graph.steps', { n }) });
   }
   return b;
 }
@@ -92,7 +98,8 @@ export function stageBadges(s: Stage): Badge[] {
 const fillCell = (tags: string[] | undefined, cell: Record<string, string> | undefined) =>
   tags?.map((t) => (cell ? t.replace(/\$\{(\w+)\}|\$(\w+)/g, (m, a, b) => cell[a ?? b] ?? m) : t));
 
-export function buildGraph(p: Pipeline): PipelineGraph {
+export function buildGraph(p: Pipeline, options: GraphOptions = {}): PipelineGraph {
+  const tr = translator(options.locale ?? 'en');
   const nodes: GNode[] = [];
   const edges: GEdge[] = [];
   let edgeSeq = 0;
@@ -128,7 +135,7 @@ export function buildGraph(p: Pipeline): PipelineGraph {
   function addStage(s: Stage, parentId: string | undefined, prefix: string): string {
     const id = prefix + s.id;
     const conditional = !!s.when;
-    const badges = stageBadges(s);
+    const badges = stageBadges(s, tr);
     const tags = s.agent?.labels;
     switch (s.body.kind) {
       case 'steps':
@@ -158,7 +165,7 @@ export function buildGraph(p: Pipeline): PipelineGraph {
           kind: 'group',
           groupKind: 'matrix',
           label: s.name,
-          subtitle: `matrix ${dims} → ${m.cells.length} cell${m.cells.length === 1 ? '' : 's'}`,
+          subtitle: tr('graph.matrix', { dims, n: m.cells.length }),
           stageId: s.id,
           conditional: conditional || !!m.when,
           tags,
@@ -167,13 +174,13 @@ export function buildGraph(p: Pipeline): PipelineGraph {
         const expand = m.cells.length <= MATRIX_EXPAND_LIMIT;
         const cells = expand ? m.cells : [Object.fromEntries(m.axes.map((a) => [a.name, `${a.name}`]))];
         const cellIds = cells.map((cell, ci) => {
-          const cellLabel = expand ? Object.values(cell).join(' · ') : `each of ${m.cells.length} cells`;
+          const cellLabel = expand ? Object.values(cell).join(' · ') : tr('graph.eachCell', { n: m.cells.length });
           const cellId = `${id}::cell${ci}`;
           const cellTags = fillCell(m.agent?.labels, expand ? cell : undefined);
           if (m.stages.length === 1) {
             const st = m.stages[0];
             const stTags = fillCell(st.agent?.labels, expand ? cell : undefined) ?? cellTags;
-            return addNode({ id: cellId, parentId: id, kind: 'stage', label: st.name, subtitle: cellLabel, stageId: st.id, conditional: !!st.when, tags: stTags, badges: stageBadges(st) });
+            return addNode({ id: cellId, parentId: id, kind: 'stage', label: st.name, subtitle: cellLabel, stageId: st.id, conditional: !!st.when, tags: stTags, badges: stageBadges(st, tr) });
           }
           addNode({ id: cellId, parentId: id, kind: 'group', groupKind: 'cell', label: cellLabel, tags: cellTags, badges: [] });
           sequence(m.stages, cellId, `${cellId}::`);
@@ -185,7 +192,7 @@ export function buildGraph(p: Pipeline): PipelineGraph {
     }
   }
 
-  const start = addNode({ id: '::start', kind: 'start', label: 'Start' });
+  const start = addNode({ id: '::start', kind: 'start', label: tr('graph.start') });
   const { first, last } = sequence(p.stages, undefined, '');
   let tail = last ?? start;
   if (first) edge(start, first);
@@ -200,7 +207,7 @@ export function buildGraph(p: Pipeline): PipelineGraph {
     edge(tail, post, undefined, 'post');
     tail = post;
   }
-  const end = addNode({ id: '::end', kind: 'end', label: 'End' });
+  const end = addNode({ id: '::end', kind: 'end', label: tr('graph.end') });
   edge(tail, end);
   return { nodes, edges };
 }
@@ -210,6 +217,13 @@ export const DOT_R = 6;
 export const LINE_H = 15;
 export const LABEL_GAP = 6;
 export const CHAR_W = 6.4;
+
+const WIDE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/g;
+
+/** Width of `s` in character cells: CJK characters and full-width forms take two. */
+export function textCols(s: string): number {
+  return s.length + (s.match(WIDE)?.length ?? 0);
+}
 const TITLE_CHAR_W = 7.4;
 const ROW_CHAR_W = 7.4;
 const MAX_LINE = 18;
@@ -279,7 +293,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
     const taglines = wrapLabel(tagText(n));
     const sublines = n.subtitle ? wrapLabel(n.subtitle) : [];
     const textH = LABEL_GAP + (lines.length + taglines.length + sublines.length) * LINE_H;
-    const width = Math.max(2 * r, ...[...lines, ...taglines, ...sublines].map((l) => l.length * CHAR_W));
+    const width = Math.max(2 * r, ...[...lines, ...taglines, ...sublines].map((l) => textCols(l) * CHAR_W));
     return {
       width,
       up: dot ? r + textH : r,
@@ -345,7 +359,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
 
     if (!forked && isForked(n.parentId)) {
       const label = clip(n.label);
-      const labelW = label.length * ROW_CHAR_W;
+      const labelW = textCols(label) * ROW_CHAR_W;
       return {
         width: labelW + ROW_LEAD + body.width,
         up: Math.max(LINE_H / 2, body.up),
@@ -367,7 +381,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
     const lines = wrapLabel(n.label);
     const taglines = wrapLabel(tagText(n));
     const titleH = (lines.length + taglines.length) * LINE_H + LABEL_GAP;
-    const width = Math.max(body.width, ...lines.map((l) => l.length * TITLE_CHAR_W), ...taglines.map((l) => l.length * CHAR_W));
+    const width = Math.max(body.width, ...lines.map((l) => textCols(l) * TITLE_CHAR_W), ...taglines.map((l) => textCols(l) * CHAR_W));
     const up = body.up + titleH;
     return {
       width,

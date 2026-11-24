@@ -2,5 +2,7 @@
 !dist/extension.js
 !media/embed.html
 !package.json
+!package.nls*.json
+!l10n/**
 !README.md
 !LICENSE

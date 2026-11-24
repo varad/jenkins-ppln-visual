@@ -1,0 +1,8 @@
+{
+  "description": "宣言的 Jenkinsfile のステージをコードの横に描画します。",
+  "command.openPreview": "パイプライン プレビューを開く",
+  "command.toggleWrap": "図の折り返しを切り替え",
+  "config.previewPosition": "「パイプライン プレビューを開く」で図を表示する位置。",
+  "config.previewPosition.below": "コードの下に全幅で表示 (パイプラインの図は横に長いため)。",
+  "config.previewPosition.beside": "コードの右側。"
+}

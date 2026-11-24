@@ -1,0 +1,8 @@
+{
+  "description": "선언적 Jenkinsfile의 스테이지를 코드 옆에 그립니다.",
+  "command.openPreview": "파이프라인 미리 보기 열기",
+  "command.toggleWrap": "다이어그램 줄 바꿈 전환",
+  "config.previewPosition": "'파이프라인 미리 보기 열기'가 다이어그램을 표시할 위치.",
+  "config.previewPosition.below": "코드 아래에 전체 너비로 표시(파이프라인 다이어그램은 가로로 깁니다).",
+  "config.previewPosition.beside": "코드 오른쪽."
+}

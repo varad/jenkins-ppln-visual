@@ -1,0 +1,8 @@
+{
+  "description": "Draws the stages of a declarative Jenkinsfile next to its code.",
+  "command.openPreview": "Open Pipeline Preview",
+  "command.toggleWrap": "Toggle Diagram Wrap",
+  "config.previewPosition": "Where Open Pipeline Preview puts the diagram.",
+  "config.previewPosition.below": "Under the code, using the full width: pipeline drawings are wide.",
+  "config.previewPosition.beside": "To the right of the code."
+}

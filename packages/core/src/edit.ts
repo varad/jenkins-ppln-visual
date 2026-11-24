@@ -1,8 +1,9 @@
 // Moving a stage by rewriting the Jenkinsfile: the diagram is always derived from the
 // source, so a drag in the picture becomes a cut-and-paste of the stage's lines.
 
-import { CHAR_W, LABEL_GAP, LINE_H, STAGE_GAP, type LaidOutNode, type PipelineLayout } from './graph.js';
+import { CHAR_W, LABEL_GAP, LINE_H, STAGE_GAP, textCols, type LaidOutNode, type PipelineLayout } from './graph.js';
 import type { Pipeline, SourceRange, Stage } from './model.js';
+import { formatMessage, type Locale, type MessageRef } from './i18n/index.js';
 
 /** Every stage in the pipeline by id, including nested, parallel and matrix stages. */
 export function indexStages(stages: Stage[], map = new Map<string, Stage>()) {
@@ -356,17 +357,23 @@ export function displayName(s: Stage): string {
 }
 
 /** Why `name` can't be the stage's new name, or null when it can. */
-export function renameError(p: Pipeline, stageId: string, name: string): string | null {
+export function renameProblem(p: Pipeline, stageId: string, name: string): MessageRef | null {
   const s = indexPipeline(p).stages.get(stageId);
-  if (!s || !canRename(p, stageId)) return 'This stage cannot be renamed.';
+  if (!s || !canRename(p, stageId)) return { code: 'rename.notRenamable' };
   const n = name.trim();
-  if (!n) return 'A stage needs a name.';
-  if (/[\r\n]/.test(n)) return 'A stage name must fit on one line.';
-  if (n === displayName(s)) return 'The name is unchanged.';
+  if (!n) return { code: 'rename.empty' };
+  if (/[\r\n]/.test(n)) return { code: 'rename.multiline' };
+  if (n === displayName(s)) return { code: 'rename.unchanged' };
   for (const o of indexPipeline(p).stages.values()) {
-    if (o !== s && displayName(o) === n) return `Another stage is already named '${n}'.`;
+    if (o !== s && displayName(o) === n) return { code: 'rename.taken', params: { name: n } };
   }
   return null;
+}
+
+/** renameProblem as text in `locale`. */
+export function renameError(p: Pipeline, stageId: string, name: string, locale: Locale = 'en'): string | null {
+  const problem = renameProblem(p, stageId, name);
+  return problem && formatMessage(problem, locale);
 }
 
 /** Rewrites only the stage's name literal, keeping a plain double-quoted name double-quoted. */
@@ -409,7 +416,7 @@ export function dropSlots(layout: PipelineLayout, p: Pipeline): DropSlot[] {
   const own = (n: LaidOutNode): Rect => {
     if (n.kind === 'group') return { left: n.absX, right: n.absX + n.width, top: n.absY, bottom: n.absY + n.height };
     const cx = n.absX + n.width / 2;
-    const half = Math.max(n.width / 2, ...[...n.lines, ...n.taglines, ...n.sublines].map((l) => (l.length * CHAR_W) / 2));
+    const half = Math.max(n.width / 2, ...[...n.lines, ...n.taglines, ...n.sublines].map((l) => (textCols(l) * CHAR_W) / 2));
     return { left: cx - half, right: cx + half, top: n.absY, bottom: n.absY + n.height + LABEL_GAP + (n.lines.length + n.taglines.length + n.sublines.length) * LINE_H };
   };
   const extent = (n: LaidOutNode): Rect =>

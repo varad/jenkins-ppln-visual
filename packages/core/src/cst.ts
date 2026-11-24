@@ -5,6 +5,7 @@
 // The declarative interpreter (declarative.ts) gives the tree its meaning.
 
 import { tokenize, type Token, type LexError } from './lexer.js';
+import { msg, type MessageRef } from './i18n/index.js';
 
 export interface Statement {
   /** Tokens before the trailing closure (the command and its arguments). */
@@ -24,7 +25,8 @@ export interface Block {
   closed: boolean;
 }
 
-export interface ParseIssue {
+export interface ParseIssue extends MessageRef {
+  /** English text; `code` and `params` give it in other locales. */
   message: string;
   start: number;
   end: number;
@@ -60,7 +62,7 @@ class Parser {
       }
       if (t.kind === 'punct' && t.text === '}') {
         if (inBraces) return out;
-        this.issues.push({ message: "Unexpected '}'", start: t.start, end: t.end, severity: 'error' });
+        this.issues.push({ ...msg('cst.unexpectedBrace'), start: t.start, end: t.end, severity: 'error' });
         this.i++;
         continue;
       }
@@ -100,14 +102,14 @@ class Parser {
         else if (t.text === ')' || t.text === ']' || (depth > 0 && t.text === '}')) {
           depth--;
           if (depth < 0) {
-            this.issues.push({ message: `Unexpected '${t.text}'`, start: t.start, end: t.end, severity: 'error' });
+            this.issues.push({ ...msg('cst.unexpectedToken', { token: t.text }), start: t.start, end: t.end, severity: 'error' });
             depth = 0;
           }
         }
       }
       if (this.recovery && depth > 0 && t.nl && t.col <= first.col) {
         // An unclosed bracket swallowed the next statement; stop here.
-        this.issues.push({ message: 'Unclosed bracket', start: first.start, end: head[head.length - 1]?.end ?? first.end, severity: 'error' });
+        this.issues.push({ ...msg('cst.unclosedBracket'), start: first.start, end: head[head.length - 1]?.end ?? first.end, severity: 'error' });
         break;
       }
       head.push(t);
@@ -116,7 +118,7 @@ class Parser {
     const lastTok = head[head.length - 1];
     const end = closure ? closure.end : lastTok ? lastTok.end : first.end;
     if (depth > 0 && !this.recovery) {
-      this.issues.push({ message: 'Unclosed bracket', start: first.start, end, severity: 'error' });
+      this.issues.push({ ...msg('cst.unclosedBracket'), start: first.start, end, severity: 'error' });
     }
     return { head, closure, start: first.start, end, line: first.line, col: first.col };
   }
@@ -130,7 +132,7 @@ class Parser {
       this.i++;
       return { statements, start: open.start, end: t.end, closed: true };
     }
-    this.issues.push({ message: "Missing '}' for this block", start: open.start, end: open.end, severity: 'error' });
+    this.issues.push({ ...msg('cst.missingBrace'), start: open.start, end: open.end, severity: 'error' });
     const lastEnd = statements.length ? statements[statements.length - 1].end : open.end;
     return { statements, start: open.start, end: lastEnd, closed: false };
   }

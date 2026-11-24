@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { canMove, canRemove, dropSlots, moveStage, removeStage, slotDistance, type DropSlot, type Pipeline, type PipelineLayout, type StageEdit } from '@jpv/core';
+import { useT } from './i18n';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 /** Pointer travel before a press on a stage becomes a drag, so plain clicks still select. */
@@ -78,8 +79,9 @@ interface Options {
  * Works on the SVG that toSvg produced; the drop markers live in a DOM-only overlay.
  */
 export function useStageDrag({ container, layout, pipeline, source, onMove, onRemove, onDragChange }: Options) {
-  const cb = useRef({ onMove, onRemove, onDragChange });
-  cb.current = { onMove, onRemove, onDragChange };
+  const tr = useT();
+  const cb = useRef({ onMove, onRemove, onDragChange, tr });
+  cb.current = { onMove, onRemove, onDragChange, tr };
   const removable = !!onRemove;
 
   useEffect(() => {
@@ -182,7 +184,7 @@ export function useStageDrag({ container, layout, pipeline, source, onMove, onRe
           const r = container.getBoundingClientRect();
           const trash = document.createElement('div');
           trash.className = 'jpv-trash';
-          trash.textContent = '🗑 Drop here to remove';
+          trash.textContent = cb.current.tr('ui.trash');
           trash.style.left = `${r.left + r.width / 2}px`;
           trash.style.bottom = `${window.innerHeight - r.bottom + 16}px`;
           document.body.append(trash);

@@ -1,0 +1,8 @@
+{
+  "description": "Ritar faserna i en deklarativ Jenkinsfile bredvid koden.",
+  "command.openPreview": "Öppna förhandsvisning av pipeline",
+  "command.toggleWrap": "Växla radbrytning av diagram",
+  "config.previewPosition": "Var \"Öppna förhandsvisning av pipeline\" placerar diagrammet.",
+  "config.previewPosition.below": "Under koden, i full bredd: pipeline-diagram är breda.",
+  "config.previewPosition.beside": "Till höger om koden."
+}

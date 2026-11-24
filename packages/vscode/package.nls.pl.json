@@ -1,0 +1,8 @@
+{
+  "description": "Rysuje etapy deklaratywnego pliku Jenkinsfile obok jego kodu.",
+  "command.openPreview": "Otwórz podgląd potoku",
+  "command.toggleWrap": "Przełącz zawijanie diagramu",
+  "config.previewPosition": "Gdzie „Otwórz podgląd potoku” umieszcza diagram.",
+  "config.previewPosition.below": "Pod kodem, na całą szerokość: diagramy potoków są szerokie.",
+  "config.previewPosition.beside": "Na prawo od kodu."
+}
