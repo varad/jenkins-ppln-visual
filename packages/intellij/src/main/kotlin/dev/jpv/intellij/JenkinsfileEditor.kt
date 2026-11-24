@@ -8,6 +8,7 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.Separator
 import com.intellij.openapi.actionSystem.ToggleAction
+import com.intellij.openapi.actionSystem.ex.TooltipDescriptionProvider
 import com.intellij.openapi.editor.ScrollType
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
@@ -114,15 +115,30 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
         get() = false
 
     override fun createViewActionGroup(): ActionGroup = DefaultActionGroup(
-        ModeAction(JpvBundle.message("action.code"), AllIcons.General.LayoutEditorOnly, Layout.SHOW_EDITOR),
-        ModeAction(JpvBundle.message("action.view"), AllIcons.General.LayoutPreviewOnly, Layout.SHOW_PREVIEW),
-        ModeAction(JpvBundle.message("action.dual"), AllIcons.General.LayoutEditorPreview, Layout.SHOW_EDITOR_AND_PREVIEW),
+        ModeAction(
+            JpvBundle.message("action.code"),
+            JpvBundle.message("action.code.description"),
+            AllIcons.General.LayoutEditorOnly,
+            Layout.SHOW_EDITOR,
+        ),
+        ModeAction(
+            JpvBundle.message("action.view"),
+            JpvBundle.message("action.view.description"),
+            AllIcons.General.LayoutPreviewOnly,
+            Layout.SHOW_PREVIEW,
+        ),
+        ModeAction(
+            JpvBundle.message("action.dual"),
+            JpvBundle.message("action.dual.description"),
+            AllIcons.General.LayoutEditorPreview,
+            Layout.SHOW_EDITOR_AND_PREVIEW,
+        ),
         Separator.getInstance(),
         WrapAction(),
     )
 
-    private inner class ModeAction(text: String, icon: Icon, private val mode: Layout) :
-        ToggleAction(text, text, icon), DumbAware {
+    private inner class ModeAction(text: String, description: String, icon: Icon, private val mode: Layout) :
+        ToggleAction(text, description, icon), DumbAware, TooltipDescriptionProvider {
 
         override fun getActionUpdateThread() = ActionUpdateThread.EDT
 
@@ -137,7 +153,8 @@ private class JenkinsfileEditor(code: TextEditor, private val view: PipelinePrev
     }
 
     private inner class WrapAction :
-        ToggleAction(JpvBundle.message("action.wrap"), JpvBundle.message("action.wrap.description"), AllIcons.Actions.ToggleSoftWrap), DumbAware {
+        ToggleAction(JpvBundle.message("action.wrap"), JpvBundle.message("action.wrap.description"), AllIcons.Actions.ToggleSoftWrap),
+        DumbAware, TooltipDescriptionProvider {
 
         override fun getActionUpdateThread() = ActionUpdateThread.EDT
 
