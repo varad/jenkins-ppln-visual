@@ -1,7 +1,7 @@
 // Moving a stage by rewriting the Jenkinsfile: the diagram is always derived from the
 // source, so a drag in the picture becomes a cut-and-paste of the stage's lines.
 
-import { CHAR_W, LABEL_GAP, LINE_H, STAGE_GAP, type LaidOutNode, type PipelineLayout } from './graph.js';
+import { CHAR_W, LABEL_GAP, LINE_H, STAGE_GAP, textCols, type LaidOutNode, type PipelineLayout } from './graph.js';
 import type { Pipeline, SourceRange, Stage } from './model.js';
 import { formatMessage, type Locale, type MessageRef } from './i18n/index.js';
 
@@ -416,7 +416,7 @@ export function dropSlots(layout: PipelineLayout, p: Pipeline): DropSlot[] {
   const own = (n: LaidOutNode): Rect => {
     if (n.kind === 'group') return { left: n.absX, right: n.absX + n.width, top: n.absY, bottom: n.absY + n.height };
     const cx = n.absX + n.width / 2;
-    const half = Math.max(n.width / 2, ...[...n.lines, ...n.taglines, ...n.sublines].map((l) => (l.length * CHAR_W) / 2));
+    const half = Math.max(n.width / 2, ...[...n.lines, ...n.taglines, ...n.sublines].map((l) => (textCols(l) * CHAR_W) / 2));
     return { left: cx - half, right: cx + half, top: n.absY, bottom: n.absY + n.height + LABEL_GAP + (n.lines.length + n.taglines.length + n.sublines.length) * LINE_H };
   };
   const extent = (n: LaidOutNode): Rect =>

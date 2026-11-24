@@ -8,14 +8,17 @@ import { de } from './de.js';
 import { es } from './es.js';
 import { fi } from './fi.js';
 import { fr } from './fr.js';
+import { ja } from './ja.js';
+import { ko } from './ko.js';
 import { nb } from './nb.js';
 import { pl } from './pl.js';
 import { sk } from './sk.js';
 import { sv } from './sv.js';
+import { zh } from './zh.js';
 
 export type { Catalog, Message, MessageKey, PluralMessage } from './en.js';
 
-export const CATALOGS = { en, cs, da, de, es, fi, fr, nb, pl, sk, sv } satisfies Record<string, Catalog>;
+export const CATALOGS = { en, cs, da, de, es, fi, fr, ja, ko, nb, pl, sk, sv, zh } satisfies Record<string, Catalog>;
 
 export type Locale = keyof typeof CATALOGS;
 
@@ -32,6 +35,9 @@ export const LOCALES: { code: Locale; name: string }[] = [
   { code: 'sk', name: 'Slovenčina' },
   { code: 'fi', name: 'Suomi' },
   { code: 'sv', name: 'Svenska' },
+  { code: 'ja', name: '日本語' },
+  { code: 'ko', name: '한국어' },
+  { code: 'zh', name: '简体中文' },
 ];
 
 export type MessageParams = Record<string, string | number>;
@@ -48,6 +54,8 @@ const ALIASES: Record<string, Locale> = { no: 'nb', nn: 'nb' };
 export function resolveLocale(tag: string | null | undefined): Locale {
   const lower = (tag ?? '').trim().toLowerCase().replace(/_/g, '-');
   const base = lower.split('-')[0];
+  // `zh` is Simplified Chinese; Traditional readers are better served by English than by the other script.
+  if (base === 'zh' && /-(hant|tw|hk|mo)\b/.test(lower)) return 'en';
   for (const t of [lower, base]) {
     if (t in CATALOGS) return t as Locale;
     if (t in ALIASES) return ALIASES[t];

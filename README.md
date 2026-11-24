@@ -87,7 +87,8 @@ IntelliJ (JCEF) or VS Code webview can drive it.
 ## Languages
 
 The viewer, the diagram, the parser's messages and both IDE plugins are available in English, Czech,
-Danish, Finnish, French, German, Norwegian (Bokmål), Polish, Slovak, Spanish and Swedish.
+Danish, Finnish, French, German, Norwegian (Bokmål), Polish, Slovak, Spanish, Swedish, Japanese, Korean and
+Simplified Chinese. Traditional Chinese falls back to English.
 The web app follows the browser's language. You can override it with the picker in the toolbar or with
 `?lang=de`. VS Code follows its display language. IntelliJ follows its language pack, or the operating
 system's language when the IDE is in English. Unsupported languages fall back to English.

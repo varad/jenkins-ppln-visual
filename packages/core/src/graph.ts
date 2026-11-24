@@ -217,6 +217,13 @@ export const DOT_R = 6;
 export const LINE_H = 15;
 export const LABEL_GAP = 6;
 export const CHAR_W = 6.4;
+
+const WIDE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/g;
+
+/** Width of `s` in character cells: CJK characters and full-width forms take two. */
+export function textCols(s: string): number {
+  return s.length + (s.match(WIDE)?.length ?? 0);
+}
 const TITLE_CHAR_W = 7.4;
 const ROW_CHAR_W = 7.4;
 const MAX_LINE = 18;
@@ -286,7 +293,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
     const taglines = wrapLabel(tagText(n));
     const sublines = n.subtitle ? wrapLabel(n.subtitle) : [];
     const textH = LABEL_GAP + (lines.length + taglines.length + sublines.length) * LINE_H;
-    const width = Math.max(2 * r, ...[...lines, ...taglines, ...sublines].map((l) => l.length * CHAR_W));
+    const width = Math.max(2 * r, ...[...lines, ...taglines, ...sublines].map((l) => textCols(l) * CHAR_W));
     return {
       width,
       up: dot ? r + textH : r,
@@ -352,7 +359,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
 
     if (!forked && isForked(n.parentId)) {
       const label = clip(n.label);
-      const labelW = label.length * ROW_CHAR_W;
+      const labelW = textCols(label) * ROW_CHAR_W;
       return {
         width: labelW + ROW_LEAD + body.width,
         up: Math.max(LINE_H / 2, body.up),
@@ -374,7 +381,7 @@ export async function layoutGraph(g: PipelineGraph, opts: LayoutOptions = {}): P
     const lines = wrapLabel(n.label);
     const taglines = wrapLabel(tagText(n));
     const titleH = (lines.length + taglines.length) * LINE_H + LABEL_GAP;
-    const width = Math.max(body.width, ...lines.map((l) => l.length * TITLE_CHAR_W), ...taglines.map((l) => l.length * CHAR_W));
+    const width = Math.max(body.width, ...lines.map((l) => textCols(l) * TITLE_CHAR_W), ...taglines.map((l) => textCols(l) * CHAR_W));
     const up = body.up + titleH;
     return {
       width,

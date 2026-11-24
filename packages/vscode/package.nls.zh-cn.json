@@ -1,0 +1,8 @@
+{
+  "description": "在代码旁绘制声明式 Jenkinsfile 的阶段。",
+  "command.openPreview": "打开流水线预览",
+  "command.toggleWrap": "切换图表换行",
+  "config.previewPosition": "“打开流水线预览”放置图表的位置。",
+  "config.previewPosition.below": "在代码下方以全宽显示：流水线图较宽。",
+  "config.previewPosition.beside": "在代码右侧。"
+}

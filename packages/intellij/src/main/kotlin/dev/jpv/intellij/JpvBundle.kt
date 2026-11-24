@@ -12,7 +12,9 @@ object JpvBundle {
      */
     val locale: Locale by lazy {
         val ide = DynamicBundle.getLocale()
-        if (ide.language != Locale.ENGLISH.language) ide else Locale.getDefault()
+        val chosen = if (ide.language != Locale.ENGLISH.language) ide else Locale.getDefault()
+        // The Chinese texts are Simplified (JpvBundle_zh_CN), like the IDE's own Chinese language pack.
+        if (chosen.language == "zh" && chosen.country.isEmpty() && chosen.script.isEmpty()) Locale.SIMPLIFIED_CHINESE else chosen
     }
 
     private val bundle: ResourceBundle by lazy {

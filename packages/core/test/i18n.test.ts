@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CATALOGS, LOCALES, buildGraph, formatMessage, parseJenkinsfile, renameError, resolveLocale, t, toMermaid, type Locale, type Message, type MessageKey } from '../src/index.js';
+import { CATALOGS, LOCALES, buildGraph, formatMessage, parseJenkinsfile, renameError, resolveLocale, t, textCols, toMermaid, type Locale, type Message, type MessageKey } from '../src/index.js';
 
 const placeholders = (m: Message) => {
   const forms = typeof m === 'string' ? [m] : Object.values(m);
@@ -43,6 +43,14 @@ describe('catalogs', () => {
   }
 });
 
+describe('textCols', () => {
+  it('counts CJK characters as two cells', () => {
+    expect(textCols('Build')).toBe(5);
+    expect(textCols('构建')).toBe(4);
+    expect(textCols('빌드 1')).toBe(6);
+  });
+});
+
 describe('translator', () => {
   it('fills placeholders and picks plural forms', () => {
     expect(t('en', 'ui.errors', { n: 1 })).toBe('1 error');
@@ -66,6 +74,12 @@ describe('translator', () => {
     expect(resolveLocale('nn-NO')).toBe('nb');
     expect(resolveLocale('CS')).toBe('cs');
     expect(resolveLocale('xx')).toBe('en');
+    expect(resolveLocale('zh-CN')).toBe('zh');
+    expect(resolveLocale('zh-Hans-CN')).toBe('zh');
+    expect(resolveLocale('zh-TW')).toBe('en');
+    expect(resolveLocale('zh-Hant')).toBe('en');
+    expect(resolveLocale('ja-JP')).toBe('ja');
+    expect(resolveLocale('ko_KR')).toBe('ko');
     expect(resolveLocale(undefined)).toBe('en');
   });
 });
@@ -98,6 +112,9 @@ describe('localized output', () => {
     expect(labels('de')).toEqual(['Start', 'Ende']);
     expect(buildGraph(p, { locale: 'fi' }).nodes.find((n) => n.stageId)?.badges[0].label).toBe('1 askel');
     expect(toMermaid(p, { locale: 'fr' })).toContain('start((Début))');
+    expect(labels('ja')).toEqual(['開始', '終了']);
+    expect(labels('ko')).toEqual(['시작', '끝']);
+    expect(labels('zh')).toEqual(['开始', '结束']);
   });
 
   it('localizes rename errors', () => {
