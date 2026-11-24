@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id("java")
     kotlin("jvm") version "2.4.21"
@@ -22,7 +24,10 @@ dependencies {
     intellijPlatform {
         intellijIdea("2026.3")
         bundledPlugin("com.intellij.modules.jcef")
+        testFramework(TestFrameworkType.Platform)
     }
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.opentest4j:opentest4j:1.3.0")
 }
 
 intellijPlatform {

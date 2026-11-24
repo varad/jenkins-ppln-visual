@@ -40,11 +40,20 @@ internal var layoutMode: TextEditorWithPreview.Layout
 
 class JenkinsfileEditorProvider : FileEditorProvider, DumbAware {
     override fun accept(project: Project, file: VirtualFile): Boolean =
-        !file.isDirectory && isJenkinsfile(file.name) && JBCefApp.isSupported()
+        canOpen(project, file) && JBCefApp.isSupported()
+
+    /** The file checks of [accept], without the JCEF check, so tests can run them headless. */
+    internal fun canOpen(project: Project, file: VirtualFile): Boolean =
+        !file.isDirectory && isJenkinsfile(file.name) &&
+            // Binary or too-large files have no document; leave them to the default editor.
+            TextEditorProvider.getInstance().accept(project, file)
 
     override fun createEditor(project: Project, file: VirtualFile): FileEditor {
+        // accept only lets through files that have a document. The platform's text editor can't
+        // open a file without one either, so there is no plain editor to fall back to.
+        val document = FileDocumentManager.getInstance().getDocument(file)
+            ?: error("Jenkinsfile has no text document: ${file.path}")
         val code = TextEditorProvider.getInstance().createEditor(project, file) as TextEditor
-        val document = FileDocumentManager.getInstance().getDocument(file)!!
         return JenkinsfileEditor(code, PipelinePreview(project, file, document))
     }
 
